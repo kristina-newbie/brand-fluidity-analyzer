@@ -1,0 +1,397 @@
+# Brand Fluidity Analyzer
+
+A comprehensive application for analyzing how brand identities evolve across text and visual content over time, using advanced NLP, computer vision, and AI-powered insights.
+
+## 📊 What It Does
+
+The Brand Fluidity Analyzer calculates four core metrics based on academic research in brand semiotics:
+
+1. **Textual Fluidity Index (TFI)** - Measures semantic drift, tone diversity, and topic turnover in brand messaging
+2. **Visual Fluidity Index (VFI)** - Analyzes visual evolution through color entropy, motif diversity, and visual drift
+3. **Cross-Modal Coherence Score (CMCS)** - Evaluates alignment between text and visual content
+4. **Brand Fluidity Index (BFI)** - Composite score with AI-generated strategic insights
+
+### Fluidity Categories
+
+- **0.0-0.3 (Solid)**: Consistent identity, stable brand cues
+- **0.3-0.6 (Semi-fluid)**: Balanced - recognizable yet adaptive
+- **0.6-1.0 (Highly Fluid)**: Dynamic, context-responsive identity
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────┐
+│   React Frontend    │  ← Drag & drop interface
+│   (Lovable-ready)   │
+└──────────┬──────────┘
+           │ HTTP/REST
+┌──────────▼──────────┐
+│   FastAPI Backend   │  ← File upload & analysis
+└──────────┬──────────┘
+           │
+    ┌──────▼──────┐
+    │   Analysis  │
+    ├─────────────┤
+    │ • CLIP      │  ← Image/text embeddings
+    │ • SBERT     │  ← Semantic analysis
+    │ • NLTK      │  ← Sentiment analysis
+    │ • Gensim    │  ← Topic modeling
+    │ • OpenCV    │  ← Visual analysis
+    │ • Claude AI │  ← Strategic insights
+    └─────────────┘
+```
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.8+
+- Node.js 14+ (for frontend)
+- Anthropic API key (for AI insights)
+
+### Backend Setup
+
+1. **Install Python dependencies:**
+
+```bash
+cd backend
+pip install -r requirements.txt --break-system-packages
+```
+
+2. **Download NLTK data:**
+
+```python
+python -c "import nltk; nltk.download('vader_lexicon'); nltk.download('punkt')"
+```
+
+3. **Set up environment variables:**
+
+```bash
+cp .env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
+```
+
+4. **Run the backend:**
+
+```bash
+python main.py
+```
+
+The API will be available at `http://localhost:8000`
+
+### Frontend Setup
+
+#### Option 1: Using Lovable (Recommended)
+
+1. Go to [Lovable.dev](https://lovable.dev)
+2. Create a new project
+3. Copy the contents of `frontend/BrandFluidityAnalyzer.jsx`
+4. Paste it as your main component
+5. Install required dependencies:
+   - `lucide-react` (for icons)
+6. Set environment variable: `REACT_APP_API_URL=http://localhost:8000`
+7. Deploy or run locally
+
+#### Option 2: Manual React Setup
+
+```bash
+npx create-react-app brand-fluidity-frontend
+cd brand-fluidity-frontend
+npm install lucide-react
+```
+
+Copy `BrandFluidityAnalyzer.jsx` to `src/App.js`, then:
+
+```bash
+npm start
+```
+
+## 📖 Usage Guide
+
+### 1. Upload Tab
+
+1. **Enter Brand Name**: Type the brand you're analyzing (e.g., "Nike", "Apple")
+
+2. **Upload Text Files**:
+   - Drag and drop `.txt` or `.md` files
+   - Examples: brand manifestos, ad copy, social media posts, website text
+   - Optionally assign years to track evolution
+
+3. **Upload Images**:
+   - Drag and drop images (`.jpg`, `.png`, etc.)
+   - Examples: logos, product photos, ad visuals, social media graphics
+   - Optionally assign years
+
+4. **Click "Upload Files"**
+
+### 2. Analyze Tab
+
+1. Review your uploaded files
+2. Click "Analyze Brand Fluidity"
+3. Wait for processing (typically 30-120 seconds depending on file count)
+
+### 3. Results Tab
+
+View comprehensive analysis including:
+
+- **Overall BFI Score** and category
+- **Individual metric breakdowns**
+- **Component scores** (semantic drift, color entropy, etc.)
+- **AI-Generated Strategic Insights** powered by Claude
+- **Recommendations** for brand strategy
+
+## 🎯 Use Cases
+
+### Brand Managers
+- Monitor brand consistency over time
+- Identify when messaging drifts from core values
+- Optimize the balance between stability and adaptation
+
+### Marketing Agencies
+- Benchmark clients against competitors
+- Demonstrate ROI of brand consistency efforts
+- Guide rebranding decisions with data
+
+### Researchers
+- Study brand evolution patterns
+- Analyze cultural shifts through brand language
+- Explore cross-modal communication strategies
+
+### Example Analysis Workflow
+
+```
+Brand: Sustainable Fashion Startup
+Files: 
+  - 2020_mission.txt
+  - 2021_campaign.txt
+  - 2022_manifesto.txt
+  - 2023_website.txt
+  + 15 images from campaigns (2020-2023)
+
+Results:
+  TFI: 0.45 (Semi-fluid) - Adaptive messaging
+  VFI: 0.62 (Fluid) - Evolving visual identity
+  CMCS: 0.78 (Strong coherence)
+  BFI: 0.52 (Semi-fluid)
+  
+Insight: Brand maintains semantic core while 
+         experimenting with visual expression.
+         Recommendation: Establish visual guidelines
+         to match textual consistency.
+```
+
+## 🔧 API Endpoints
+
+### POST `/api/upload`
+Upload brand materials.
+
+**Parameters:**
+- `brand_name` (string): Brand identifier
+- `texts` (files[]): Text files
+- `images` (files[]): Image files
+- `years` (JSON): Optional year mapping
+
+**Response:**
+```json
+{
+  "status": "success",
+  "texts_uploaded": 5,
+  "images_uploaded": 12
+}
+```
+
+### POST `/api/analyze`
+Run fluidity analysis.
+
+**Parameters:**
+- `brand_name` (string): Brand to analyze
+- `include_llm_insights` (bool): Generate AI insights
+
+**Response:**
+```json
+{
+  "brand_name": "Nike",
+  "textual_fluidity": {
+    "TFI": 0.612,
+    "semantic_drift": 0.543,
+    "tone_diversity": 0.621,
+    "topic_turnover": 0.672,
+    "interpretation": "Semi-fluid..."
+  },
+  "visual_fluidity": {...},
+  "cross_modal_coherence": {...},
+  "brand_fluidity_index": {
+    "BFI": 0.648,
+    "category": "Semi-fluid"
+  },
+  "llm_insights": {
+    "insights": "Strategic analysis..."
+  }
+}
+```
+
+### GET `/api/brands`
+List all analyzed brands.
+
+### DELETE `/api/brands/{brand_name}`
+Delete a brand and its files.
+
+## 📚 Technical Details
+
+### Textual Fluidity Index (TFI)
+
+**Components:**
+1. **Semantic Drift**: Cosine distance between SBERT embeddings across time periods
+2. **Tone Diversity**: Standard deviation of VADER sentiment scores
+3. **Topic Turnover**: LDA-based topic distribution variance
+
+**Formula:**
+```
+TFI = (1/3) × (SD + TD + TT)
+```
+
+### Visual Fluidity Index (VFI)
+
+**Components:**
+1. **Visual Drift**: K-means clustering variance of CLIP embeddings
+2. **Color Entropy**: Shannon entropy of HSV color histograms
+3. **Motif Diversity**: Embedding distribution standard deviation
+
+**Formula:**
+```
+VFI = (1/3) × (VD + CE + MD)
+```
+
+### Cross-Modal Coherence Score (CMCS)
+
+Measures text-image alignment using CLIP's joint embedding space:
+```
+CMCS = mean(cosine_similarity(text_embed, image_embed))
+```
+
+### Brand Fluidity Index (BFI)
+
+Composite score:
+```
+BFI = 0.4×TFI + 0.4×VFI + 0.2×(1-CMCS)
+```
+
+## 🛠️ Customization
+
+### Adjust Metric Weights
+
+In `brand_fluidity_analyzer.py`, modify the `compute_brand_fluidity_index` function:
+
+```python
+def compute_brand_fluidity_index(self, TFI, VFI, CMCS, 
+                                  alpha=0.5,  # ← Increase text weight
+                                  beta=0.3,   # ← Decrease visual weight
+                                  gamma=0.2):
+    ...
+```
+
+### Change AI Model
+
+In `llm_analyzer.py`, update the model:
+
+```python
+message = self.client.messages.create(
+    model="claude-sonnet-4-5-20250929",  # ← Change model
+    max_tokens=2000,
+    ...
+)
+```
+
+### Add New Metrics
+
+Extend `BrandFluidityAnalyzer` class with custom analysis functions:
+
+```python
+def calculate_custom_metric(self, data):
+    # Your metric calculation
+    return score
+```
+
+## 🎨 Frontend Customization
+
+The React component is fully customizable:
+
+- **Colors**: Modify Tailwind classes (`bg-blue-600` → `bg-purple-600`)
+- **Layout**: Adjust grid layouts (`md:grid-cols-2` → `md:grid-cols-3`)
+- **Components**: Add charts using Recharts or Chart.js
+- **Styling**: Works with any CSS framework (Tailwind, Material-UI, etc.)
+
+## 🐛 Troubleshooting
+
+### "ModuleNotFoundError: No module named 'torch'"
+```bash
+pip install torch torchvision --break-system-packages
+```
+
+### "CLIP model download fails"
+The model downloads automatically on first run. Ensure internet connection and sufficient disk space (~400MB).
+
+### "NLTK data not found"
+```python
+import nltk
+nltk.download('vader_lexicon')
+nltk.download('punkt')
+```
+
+### "CORS errors in frontend"
+Ensure backend is running and `API_URL` in frontend matches backend address.
+
+### "Analysis takes too long"
+- Reduce image count or resize images
+- Use fewer text samples
+- Run on a machine with GPU support for faster embedding generation
+
+## 📝 File Naming Conventions
+
+For automatic year detection, include year in filename:
+
+```
+✅ Good:
+- nike_2020_manifesto.txt
+- campaign_2021.jpg
+- brand_guidelines_2023.txt
+
+❌ Not automatically detected:
+- manifesto.txt (defaults to 2024)
+- campaign.jpg (defaults to 2024)
+```
+
+## 🔐 Security Notes
+
+- The app stores uploaded files in `/uploads` directory
+- No files are sent to external services except Claude API for insights
+- Delete brands after analysis to manage storage
+- In production, implement authentication and rate limiting
+
+## 📄 License
+
+This project is based on academic research in brand semiotics and fluidity theory.
+
+## 🙏 Acknowledgments
+
+- CLIP model by OpenAI
+- Sentence-BERT by UKP Lab
+- Brand fluidity metrics based on liquid modernity theory (Bauman)
+
+## 💡 Future Enhancements
+
+- [ ] Multi-brand comparative analysis
+- [ ] Time-series visualizations
+- [ ] Export reports as PDF
+- [ ] Real-time brand monitoring
+- [ ] Social media API integrations
+- [ ] Custom metric builder UI
+- [ ] Historical benchmark database
+
+## 📧 Support
+
+For issues or questions, please refer to the research documentation in `IJRM-Core_Metrics.docx`.
+
+---
+
+**Built with ❤️ for brand researchers and marketing professionals**
