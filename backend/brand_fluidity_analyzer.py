@@ -21,6 +21,9 @@ Scientific References:
 """
 
 import os
+# Fix tokenizer parallelism warning - must be set before importing transformers
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import re
 import numpy as np
 import pandas as pd
@@ -31,7 +34,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
 from nltk.sentiment import SentimentIntensityAnalyzer
-from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.tokenize import sent_tokenize
 from gensim import corpora, models
 from collections import defaultdict, Counter
 import cv2
@@ -295,29 +298,46 @@ class BrandFluidityAnalyzer:
         if len(all_texts) < 5:
             return 0.0, [], {}
         
-        # Preprocess for LDA
+        # Simple preprocessing (avoid NLTK word_tokenize for stability)
         def preprocess(text):
-            tokens = word_tokenize(text.lower())
-            return [t for t in tokens if t.isalpha() and t not in self.stopwords and len(t) > 2]
+            # Simple tokenization: lowercase, split on non-alphanumeric, filter
+            tokens = re.findall(r'\b[a-z]{3,}\b', text.lower())
+            return [t for t in tokens if t not in self.stopwords]
         
-        tokenized_texts = [preprocess(text) for text in all_texts]
-        
-        # Build dictionary and corpus
-        dictionary = corpora.Dictionary(tokenized_texts)
-        dictionary.filter_extremes(no_below=2, no_above=0.8, keep_n=1000)
-        
-        if len(dictionary) < 5:
-            return 0.0, [], {}
-        
-        corpus = [dictionary.doc2bow(text) for text in tokenized_texts]
-        
-        # Determine number of topics: k = min(10, n/2) as per methodology
-        if n_topics is None:
-            n_topics = min(10, len(all_texts) // 2)
-            n_topics = max(3, n_topics)  # At least 3 topics
-        
-        # Train LDA model (Blei et al., 2003)
         try:
+            tokenized_texts = [preprocess(text) for text in all_texts]
+            
+            # Filter out empty documents
+            valid_indices = [i for i, tokens in enumerate(tokenized_texts) if len(tokens) > 0]
+            if len(valid_indices) < 5:
+                return 0.0, [], {}
+            
+            tokenized_texts = [tokenized_texts[i] for i in valid_indices]
+            text_year_map = [text_year_map[i] for i in valid_indices]
+            
+            # Build dictionary and corpus
+            dictionary = corpora.Dictionary(tokenized_texts)
+            dictionary.filter_extremes(no_below=2, no_above=0.8, keep_n=1000)
+            
+            if len(dictionary) < 5:
+                return 0.0, [], {}
+            
+            corpus = [dictionary.doc2bow(text) for text in tokenized_texts]
+            
+            # Filter out empty documents from corpus
+            valid_corpus_indices = [i for i, doc in enumerate(corpus) if len(doc) > 0]
+            if len(valid_corpus_indices) < 5:
+                return 0.0, [], {}
+            
+            corpus = [corpus[i] for i in valid_corpus_indices]
+            text_year_map = [text_year_map[i] for i in valid_corpus_indices]
+            
+            # Determine number of topics: k = min(10, n/2) as per methodology
+            if n_topics is None:
+                n_topics = min(10, len(corpus) // 2)
+                n_topics = max(3, n_topics)  # At least 3 topics
+            
+            # Train LDA model (Blei et al., 2003)
             lda = models.LdaModel(
                 corpus,
                 num_topics=n_topics,
@@ -327,53 +347,55 @@ class BrandFluidityAnalyzer:
                 alpha='auto',
                 eta='auto'
             )
+            
+            # Get dominant topics for each year (threshold > 0.15 as per methodology)
+            DOMINANCE_THRESHOLD = 0.15
+            dominant_topics_by_year = {}
+            
+            for year in years:
+                year_indices = [i for i, y in enumerate(text_year_map) if y == year]
+                year_topics = set()
+                
+                for idx in year_indices:
+                    if idx < len(corpus):
+                        doc_topics = lda.get_document_topics(corpus[idx], minimum_probability=0.0)
+                        for topic_id, prob in doc_topics:
+                            if prob > DOMINANCE_THRESHOLD:
+                                year_topics.add(topic_id)
+                
+                dominant_topics_by_year[year] = year_topics
+            
+            # Compute Jaccard-based turnover between consecutive years
+            turnovers = []
+            for i in range(len(years) - 1):
+                year1, year2 = years[i], years[i + 1]
+                topics1 = dominant_topics_by_year.get(year1, set())
+                topics2 = dominant_topics_by_year.get(year2, set())
+                
+                # Jaccard similarity: |A ∩ B| / |A ∪ B|
+                if len(topics1) == 0 and len(topics2) == 0:
+                    jaccard = 1.0  # Both empty = perfect similarity
+                else:
+                    intersection = len(topics1.intersection(topics2))
+                    union = len(topics1.union(topics2))
+                    jaccard = intersection / union if union > 0 else 0.0
+                
+                turnover = 1 - jaccard  # Turnover = 1 - similarity
+                turnovers.append({
+                    'period': f"{year1}-{year2}",
+                    'turnover': turnover,
+                    'jaccard_similarity': jaccard,
+                    'topics_year1': len(topics1),
+                    'topics_year2': len(topics2)
+                })
+            
+            mean_turnover = np.mean([t['turnover'] for t in turnovers]) if turnovers else 0.0
+            
+            return float(mean_turnover), turnovers, dominant_topics_by_year
+            
         except Exception as e:
-            print(f"LDA training failed: {e}")
+            print(f"LDA topic turnover computation failed: {e}")
             return 0.0, [], {}
-        
-        # Get dominant topics for each year (threshold > 0.15 as per methodology)
-        DOMINANCE_THRESHOLD = 0.15
-        dominant_topics_by_year = {}
-        
-        for year in years:
-            year_indices = [i for i, y in enumerate(text_year_map) if y == year]
-            year_topics = set()
-            
-            for idx in year_indices:
-                doc_topics = lda.get_document_topics(corpus[idx], minimum_probability=0.0)
-                for topic_id, prob in doc_topics:
-                    if prob > DOMINANCE_THRESHOLD:
-                        year_topics.add(topic_id)
-            
-            dominant_topics_by_year[year] = year_topics
-        
-        # Compute Jaccard-based turnover between consecutive years
-        turnovers = []
-        for i in range(len(years) - 1):
-            year1, year2 = years[i], years[i + 1]
-            topics1 = dominant_topics_by_year[year1]
-            topics2 = dominant_topics_by_year[year2]
-            
-            # Jaccard similarity: |A ∩ B| / |A ∪ B|
-            if len(topics1) == 0 and len(topics2) == 0:
-                jaccard = 1.0  # Both empty = perfect similarity
-            else:
-                intersection = len(topics1.intersection(topics2))
-                union = len(topics1.union(topics2))
-                jaccard = intersection / union if union > 0 else 0.0
-            
-            turnover = 1 - jaccard  # Turnover = 1 - similarity
-            turnovers.append({
-                'period': f"{year1}-{year2}",
-                'turnover': turnover,
-                'jaccard_similarity': jaccard,
-                'topics_year1': len(topics1),
-                'topics_year2': len(topics2)
-            })
-        
-        mean_turnover = np.mean([t['turnover'] for t in turnovers]) if turnovers else 0.0
-        
-        return mean_turnover, turnovers, dominant_topics_by_year
     
     def _compute_clustering_motif_diversity(self, image_paths, images_by_year):
         """
@@ -390,7 +412,7 @@ class BrandFluidityAnalyzer:
         Returns: (motif_diversity, cluster_stats)
         """
         if len(image_paths) < 5:
-            return 0.5, {}
+            return 0.5, {'error': 'insufficient_images'}
         
         # Compute CLIP embeddings for all images
         embeddings = []
@@ -403,61 +425,62 @@ class BrandFluidityAnalyzer:
                     embedding = self.clip_model.encode_image(image)
                 embeddings.append(embedding.cpu().numpy().flatten())
                 valid_paths.append(path)
-            except:
+            except Exception as e:
                 continue
         
         if len(embeddings) < 5:
-            return 0.5, {}
+            return 0.5, {'error': 'failed_to_process_images'}
         
-        embeddings = np.array(embeddings)
-        
-        # Determine number of clusters: k = min(15, sqrt(n))
-        n_clusters = min(15, int(np.sqrt(len(embeddings))))
-        n_clusters = max(3, n_clusters)  # At least 3 clusters
-        
-        # K-means clustering (MacQueen, 1967)
         try:
+            embeddings = np.array(embeddings)
+            
+            # Determine number of clusters: k = min(15, sqrt(n))
+            n_clusters = min(15, int(np.sqrt(len(embeddings))))
+            n_clusters = max(3, min(n_clusters, len(embeddings) - 1))  # Can't have more clusters than samples
+            
+            # K-means clustering (MacQueen, 1967)
             kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
             labels = kmeans.fit_predict(embeddings)
+            
+            # Compute cluster distribution
+            cluster_counts = Counter(labels)
+            
+            # Uniqueness: proportion of clusters actually utilized
+            clusters_used = len(cluster_counts)
+            uniqueness = clusters_used / n_clusters
+            
+            # Evenness: normalized Shannon entropy of cluster distribution
+            # Based on Shannon, C. E. (1948). Mathematical Theory of Communication.
+            total = len(labels)
+            probs = np.array([count / total for count in cluster_counts.values()])
+            
+            # Shannon entropy
+            entropy = -np.sum(probs * np.log2(probs + 1e-10))
+            
+            # Maximum entropy for this number of clusters
+            max_entropy = np.log2(clusters_used) if clusters_used > 1 else 1.0
+            
+            # Normalized evenness (0 = all in one cluster, 1 = perfectly even)
+            evenness = entropy / max_entropy if max_entropy > 0 else 0.0
+            
+            # Motif diversity = average of uniqueness and evenness
+            motif_diversity = (uniqueness + evenness) / 2
+            
+            cluster_stats = {
+                'n_clusters_target': n_clusters,
+                'n_clusters_used': clusters_used,
+                'uniqueness': float(uniqueness),
+                'evenness': float(evenness),
+                'entropy': float(entropy),
+                'max_entropy': float(max_entropy),
+                'cluster_distribution': dict(cluster_counts)
+            }
+            
+            return float(motif_diversity), cluster_stats
+            
         except Exception as e:
-            print(f"K-means failed: {e}")
-            return 0.5, {}
-        
-        # Compute cluster distribution
-        cluster_counts = Counter(labels)
-        
-        # Uniqueness: proportion of clusters actually utilized
-        clusters_used = len(cluster_counts)
-        uniqueness = clusters_used / n_clusters
-        
-        # Evenness: normalized Shannon entropy of cluster distribution
-        # Based on Shannon, C. E. (1948). Mathematical Theory of Communication.
-        total = len(labels)
-        probs = np.array([count / total for count in cluster_counts.values()])
-        
-        # Shannon entropy
-        entropy = -np.sum(probs * np.log2(probs + 1e-10))
-        
-        # Maximum entropy for this number of clusters
-        max_entropy = np.log2(clusters_used) if clusters_used > 1 else 1.0
-        
-        # Normalized evenness (0 = all in one cluster, 1 = perfectly even)
-        evenness = entropy / max_entropy if max_entropy > 0 else 0.0
-        
-        # Motif diversity = average of uniqueness and evenness
-        motif_diversity = (uniqueness + evenness) / 2
-        
-        cluster_stats = {
-            'n_clusters_target': n_clusters,
-            'n_clusters_used': clusters_used,
-            'uniqueness': float(uniqueness),
-            'evenness': float(evenness),
-            'entropy': float(entropy),
-            'max_entropy': float(max_entropy),
-            'cluster_distribution': dict(cluster_counts)
-        }
-        
-        return float(motif_diversity), cluster_stats
+            print(f"Motif diversity clustering failed: {e}")
+            return 0.5, {'error': str(e)}
     
     def calculate_textual_fluidity(self, texts_by_year):
         """
@@ -664,163 +687,173 @@ class BrandFluidityAnalyzer:
         With temporal data: CMCS = 0.3*CS + 0.3*NN + 0.4*TC
         Without temporal: CMCS = 0.5*CS + 0.5*NN
         """
-        # Collect all texts and images
-        all_texts = [t for texts in texts_by_year.values() for t in texts]
-        all_images = [p for paths in images_by_year.values() for p in paths]
-        
-        if not all_texts or not all_images:
-            return {
-                "CMCS": 0.5,
-                "interpretation": "Insufficient data for cross-modal analysis"
-            }
-        
-        # Compute CLIP text embeddings
-        text_embeddings = []
-        for text in all_texts:
-            try:
-                truncated = text[:300] if len(text) > 300 else text
-                tokens = clip.tokenize([truncated], truncate=True).to(self.device)
-                with torch.no_grad():
-                    embed = self.clip_model.encode_text(tokens)
-                text_embeddings.append(embed.cpu().numpy().flatten())
-            except:
-                continue
-        
-        # Compute CLIP image embeddings
-        image_embeddings = []
-        for path in all_images:
-            try:
-                image = self.clip_preprocess(Image.open(path).convert('RGB')).unsqueeze(0).to(self.device)
-                with torch.no_grad():
-                    embed = self.clip_model.encode_image(image)
-                image_embeddings.append(embed.cpu().numpy().flatten())
-            except:
-                continue
-        
-        if not text_embeddings or not image_embeddings:
-            return {
-                "CMCS": 0.5,
-                "interpretation": "Failed to compute embeddings"
-            }
-        
-        # 1. Centroid Similarity (CS) - global alignment
-        text_centroid = np.mean(text_embeddings, axis=0)
-        image_centroid = np.mean(image_embeddings, axis=0)
-        
-        text_centroid = text_centroid / (np.linalg.norm(text_centroid) + 1e-8)
-        image_centroid = image_centroid / (np.linalg.norm(image_centroid) + 1e-8)
-        
-        centroid_sim = float(np.dot(text_centroid, image_centroid))
-        
-        # 2. Nearest-Neighbor Coherence (NN)
-        sample_size = min(30, len(text_embeddings), len(image_embeddings))
-        sample_texts = text_embeddings[:sample_size]
-        sample_images = image_embeddings[:sample_size]
-        
-        # Text-to-image NN
-        t2i_similarities = []
-        for t_emb in sample_texts:
-            t_norm = t_emb / (np.linalg.norm(t_emb) + 1e-8)
-            best_sim = max(
-                float(np.dot(t_norm, i_emb / (np.linalg.norm(i_emb) + 1e-8)))
-                for i_emb in sample_images
-            )
-            t2i_similarities.append(best_sim)
-        
-        # Image-to-text NN
-        i2t_similarities = []
-        for i_emb in sample_images:
-            i_norm = i_emb / (np.linalg.norm(i_emb) + 1e-8)
-            best_sim = max(
-                float(np.dot(i_norm, t_emb / (np.linalg.norm(t_emb) + 1e-8)))
-                for t_emb in sample_texts
-            )
-            i2t_similarities.append(best_sim)
-        
-        nn_coherence = (np.mean(t2i_similarities) + np.mean(i2t_similarities)) / 2
-        
-        # 3. Temporal Coherence (TC) - NEW in v4
-        # Compute within-period centroid similarity and average across periods
-        common_years = set(texts_by_year.keys()) & set(images_by_year.keys())
-        
-        temporal_coherences = []
-        if len(common_years) >= 2:
-            for year in common_years:
-                year_texts = texts_by_year.get(year, [])
-                year_images = images_by_year.get(year, [])
-                
-                if not year_texts or not year_images:
+        try:
+            # Collect all texts and images
+            all_texts = [t for texts in texts_by_year.values() for t in texts]
+            all_images = [p for paths in images_by_year.values() for p in paths]
+            
+            if not all_texts or not all_images:
+                return {
+                    "CMCS": 0.5,
+                    "interpretation": "Insufficient data for cross-modal analysis"
+                }
+            
+            # Compute CLIP text embeddings
+            text_embeddings = []
+            for text in all_texts:
+                try:
+                    truncated = text[:300] if len(text) > 300 else text
+                    tokens = clip.tokenize([truncated], truncate=True).to(self.device)
+                    with torch.no_grad():
+                        embed = self.clip_model.encode_text(tokens)
+                    text_embeddings.append(embed.cpu().numpy().flatten())
+                except:
                     continue
-                
-                # Compute year-specific centroids
-                year_text_embeds = []
-                for text in year_texts[:10]:  # Sample for efficiency
-                    try:
-                        truncated = text[:300] if len(text) > 300 else text
-                        tokens = clip.tokenize([truncated], truncate=True).to(self.device)
-                        with torch.no_grad():
-                            embed = self.clip_model.encode_text(tokens)
-                        year_text_embeds.append(embed.cpu().numpy().flatten())
-                    except:
-                        continue
-                
-                year_image_embeds = []
-                for path in year_images[:10]:  # Sample for efficiency
-                    try:
-                        image = self.clip_preprocess(Image.open(path).convert('RGB')).unsqueeze(0).to(self.device)
-                        with torch.no_grad():
-                            embed = self.clip_model.encode_image(image)
-                        year_image_embeds.append(embed.cpu().numpy().flatten())
-                    except:
-                        continue
-                
-                if year_text_embeds and year_image_embeds:
-                    year_text_centroid = np.mean(year_text_embeds, axis=0)
-                    year_image_centroid = np.mean(year_image_embeds, axis=0)
+            
+            # Compute CLIP image embeddings
+            image_embeddings = []
+            for path in all_images:
+                try:
+                    image = self.clip_preprocess(Image.open(path).convert('RGB')).unsqueeze(0).to(self.device)
+                    with torch.no_grad():
+                        embed = self.clip_model.encode_image(image)
+                    image_embeddings.append(embed.cpu().numpy().flatten())
+                except:
+                    continue
+            
+            if not text_embeddings or not image_embeddings:
+                return {
+                    "CMCS": 0.5,
+                    "interpretation": "Failed to compute embeddings"
+                }
+            
+            # 1. Centroid Similarity (CS) - global alignment
+            text_centroid = np.mean(text_embeddings, axis=0)
+            image_centroid = np.mean(image_embeddings, axis=0)
+            
+            text_centroid = text_centroid / (np.linalg.norm(text_centroid) + 1e-8)
+            image_centroid = image_centroid / (np.linalg.norm(image_centroid) + 1e-8)
+            
+            centroid_sim = float(np.dot(text_centroid, image_centroid))
+            
+            # 2. Nearest-Neighbor Coherence (NN)
+            sample_size = min(30, len(text_embeddings), len(image_embeddings))
+            sample_texts = text_embeddings[:sample_size]
+            sample_images = image_embeddings[:sample_size]
+            
+            # Text-to-image NN
+            t2i_similarities = []
+            for t_emb in sample_texts:
+                t_norm = t_emb / (np.linalg.norm(t_emb) + 1e-8)
+                best_sim = max(
+                    float(np.dot(t_norm, i_emb / (np.linalg.norm(i_emb) + 1e-8)))
+                    for i_emb in sample_images
+                )
+                t2i_similarities.append(best_sim)
+            
+            # Image-to-text NN
+            i2t_similarities = []
+            for i_emb in sample_images:
+                i_norm = i_emb / (np.linalg.norm(i_emb) + 1e-8)
+                best_sim = max(
+                    float(np.dot(i_norm, t_emb / (np.linalg.norm(t_emb) + 1e-8)))
+                    for t_emb in sample_texts
+                )
+                i2t_similarities.append(best_sim)
+            
+            nn_coherence = (np.mean(t2i_similarities) + np.mean(i2t_similarities)) / 2
+            
+            # 3. Temporal Coherence (TC) - NEW in v4
+            # Compute within-period centroid similarity and average across periods
+            common_years = set(texts_by_year.keys()) & set(images_by_year.keys())
+            
+            temporal_coherences = []
+            if len(common_years) >= 2:
+                for year in common_years:
+                    year_texts = texts_by_year.get(year, [])
+                    year_images = images_by_year.get(year, [])
                     
-                    year_text_centroid = year_text_centroid / (np.linalg.norm(year_text_centroid) + 1e-8)
-                    year_image_centroid = year_image_centroid / (np.linalg.norm(year_image_centroid) + 1e-8)
+                    if not year_texts or not year_images:
+                        continue
                     
-                    year_sim = float(np.dot(year_text_centroid, year_image_centroid))
-                    temporal_coherences.append({'year': year, 'similarity': year_sim})
-        
-        # Combine measures based on temporal data availability
-        if temporal_coherences:
-            temporal_coherence = np.mean([tc['similarity'] for tc in temporal_coherences])
-            # With temporal data: 0.3*CS + 0.3*NN + 0.4*TC (per methodology)
-            raw_cmcs = 0.3 * centroid_sim + 0.3 * nn_coherence + 0.4 * temporal_coherence
-        else:
-            temporal_coherence = None
-            # Without temporal data: 0.5*CS + 0.5*NN
-            raw_cmcs = 0.5 * centroid_sim + 0.5 * nn_coherence
-        
-        # Normalize to [0, 1] - CLIP similarities typically in [0.15, 0.40] range
-        # Use empirical scaling rather than raw [-1, 1] mapping
-        CMCS = max(0, min(1, (raw_cmcs - 0.10) / 0.35))  # Maps ~[0.10, 0.45] to [0, 1]
-        
-        # Interpretation
-        if CMCS > 0.65:
-            interpretation = "Strong coherence - text and visuals are well-aligned"
-        elif CMCS > 0.45:
-            interpretation = "Moderate coherence - partial alignment between text and visuals"
-        elif CMCS > 0.30:
-            interpretation = "Weak coherence - fragmented or decoupled storytelling"
-        else:
-            interpretation = "Very weak coherence - text and visual identities diverge significantly"
-        
-        result = {
-            "CMCS": float(CMCS),
-            "centroid_similarity": float(centroid_sim),
-            "nn_coherence": float(nn_coherence),
-            "raw_cmcs": float(raw_cmcs),
-            "interpretation": interpretation
-        }
-        
-        if temporal_coherence is not None:
-            result["temporal_coherence"] = float(temporal_coherence)
-            result["temporal_coherence_by_year"] = temporal_coherences
-        
-        return result
+                    # Compute year-specific centroids
+                    year_text_embeds = []
+                    for text in year_texts[:10]:  # Sample for efficiency
+                        try:
+                            truncated = text[:300] if len(text) > 300 else text
+                            tokens = clip.tokenize([truncated], truncate=True).to(self.device)
+                            with torch.no_grad():
+                                embed = self.clip_model.encode_text(tokens)
+                            year_text_embeds.append(embed.cpu().numpy().flatten())
+                        except:
+                            continue
+                    
+                    year_image_embeds = []
+                    for path in year_images[:10]:  # Sample for efficiency
+                        try:
+                            image = self.clip_preprocess(Image.open(path).convert('RGB')).unsqueeze(0).to(self.device)
+                            with torch.no_grad():
+                                embed = self.clip_model.encode_image(image)
+                            year_image_embeds.append(embed.cpu().numpy().flatten())
+                        except:
+                            continue
+                    
+                    if year_text_embeds and year_image_embeds:
+                        year_text_centroid = np.mean(year_text_embeds, axis=0)
+                        year_image_centroid = np.mean(year_image_embeds, axis=0)
+                        
+                        year_text_centroid = year_text_centroid / (np.linalg.norm(year_text_centroid) + 1e-8)
+                        year_image_centroid = year_image_centroid / (np.linalg.norm(year_image_centroid) + 1e-8)
+                        
+                        year_sim = float(np.dot(year_text_centroid, year_image_centroid))
+                        temporal_coherences.append({'year': year, 'similarity': year_sim})
+            
+            # Combine measures based on temporal data availability
+            if temporal_coherences:
+                temporal_coherence = np.mean([tc['similarity'] for tc in temporal_coherences])
+                # With temporal data: 0.3*CS + 0.3*NN + 0.4*TC (per methodology)
+                raw_cmcs = 0.3 * centroid_sim + 0.3 * nn_coherence + 0.4 * temporal_coherence
+            else:
+                temporal_coherence = None
+                # Without temporal data: 0.5*CS + 0.5*NN
+                raw_cmcs = 0.5 * centroid_sim + 0.5 * nn_coherence
+            
+            # Normalize to [0, 1] - CLIP similarities typically in [0.15, 0.40] range
+            # Use empirical scaling rather than raw [-1, 1] mapping
+            CMCS = max(0, min(1, (raw_cmcs - 0.10) / 0.35))  # Maps ~[0.10, 0.45] to [0, 1]
+            
+            # Interpretation
+            if CMCS > 0.65:
+                interpretation = "Strong coherence - text and visuals are well-aligned"
+            elif CMCS > 0.45:
+                interpretation = "Moderate coherence - partial alignment between text and visuals"
+            elif CMCS > 0.30:
+                interpretation = "Weak coherence - fragmented or decoupled storytelling"
+            else:
+                interpretation = "Very weak coherence - text and visual identities diverge significantly"
+            
+            result = {
+                "CMCS": float(CMCS),
+                "centroid_similarity": float(centroid_sim),
+                "nn_coherence": float(nn_coherence),
+                "raw_cmcs": float(raw_cmcs),
+                "interpretation": interpretation
+            }
+            
+            if temporal_coherence is not None:
+                result["temporal_coherence"] = float(temporal_coherence)
+                result["temporal_coherence_by_year"] = temporal_coherences
+            
+            return result
+            
+        except Exception as e:
+            print(f"CMCS calculation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "CMCS": 0.5,
+                "interpretation": f"Error in CMCS calculation: {str(e)}"
+            }
     
     def compute_brand_fluidity_index(self, TFI, VFI, CMCS, alpha=0.4, beta=0.4, gamma=0.2):
         """
