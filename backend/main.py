@@ -7,7 +7,9 @@ import json
 import shutil
 from pathlib import Path
 import uvicorn
-
+import traceback
+from dotenv import load_dotenv
+load_dotenv()
 from brand_fluidity_analyzer import BrandFluidityAnalyzer
 from llm_analyzer import LLMAnalyzer
 
@@ -99,25 +101,56 @@ async def analyze_brand(
     Analyze brand fluidity metrics for uploaded materials.
     """
     try:
+        print("="*70)
+        print(f"Starting analysis for: {brand_name}")
+        print(f"Include LLM insights: {include_llm_insights}")
+        print("="*70)
+        
         brand_dir = UPLOAD_DIR / brand_name.replace(" ", "_")
         if not brand_dir.exists():
             raise HTTPException(status_code=404, detail="Brand not found")
         
+        text_dir = brand_dir / "texts"
+        image_dir = brand_dir / "images"
+        
+        # Count files
+        text_files = list(text_dir.glob("*")) if text_dir.exists() else []
+        image_files = list(image_dir.glob("*")) if image_dir.exists() else []
+        
+        print(f"Found {len(text_files)} text files in {text_dir}")
+        print(f"Found {len(image_files)} image files in {image_dir}")
+        
         # Run analysis
+        print("\nStarting Brand Fluidity Analysis...")
         results = analyzer.analyze_brand(
-            text_dir=str(brand_dir / "texts"),
-            image_dir=str(brand_dir / "images"),
+            text_dir=str(text_dir),
+            image_dir=str(image_dir),
             brand_name=brand_name
         )
+        print("Brand Fluidity Analysis completed successfully!")
         
         # Add LLM insights if requested
         if include_llm_insights:
+            print("\nGenerating LLM insights...")
             llm_insights = await llm_analyzer.generate_insights(results)
             results["llm_insights"] = llm_insights
+            print("LLM insights generated successfully!")
+        
+        print("="*70)
+        print("Analysis completed successfully!")
+        print("="*70)
         
         return JSONResponse(results)
     
     except Exception as e:
+        print("="*70)
+        print("ERROR OCCURRED DURING ANALYSIS:")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print("="*70)
+        print("FULL TRACEBACK:")
+        traceback.print_exc()
+        print("="*70)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/brands")
