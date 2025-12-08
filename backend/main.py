@@ -37,7 +37,14 @@ llm_analyzer = LLMAnalyzer()
 def convert_numpy_types(obj):
     """Convert numpy types to Python native types for JSON serialization."""
     if isinstance(obj, dict):
-        return {convert_numpy_types(key): convert_numpy_types(value) for key, value in obj.items()}
+        # Convert both keys and values - keys might be numpy types too!
+        return {
+            (int(key) if isinstance(key, np.integer) else 
+             float(key) if isinstance(key, np.floating) else 
+             str(key) if not isinstance(key, (str, int, float, bool, type(None))) else key): 
+            convert_numpy_types(value) 
+            for key, value in obj.items()
+        }
     elif isinstance(obj, list):
         return [convert_numpy_types(item) for item in obj]
     elif isinstance(obj, tuple):
@@ -48,6 +55,8 @@ def convert_numpy_types(obj):
         return float(obj)
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
     else:
         return obj
 
@@ -159,7 +168,9 @@ async def analyze_brand(
         print("="*70)
         
         # Convert numpy types to Python native types for JSON serialization
+        print("Converting numpy types to Python native types...")
         results = convert_numpy_types(results)
+        print("Conversion completed!")
         
         return JSONResponse(results)
     
