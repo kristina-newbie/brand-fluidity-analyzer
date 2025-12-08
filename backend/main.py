@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 import uvicorn
 import traceback
+import numpy as np
 from dotenv import load_dotenv
 load_dotenv()
 from brand_fluidity_analyzer import BrandFluidityAnalyzer
@@ -32,6 +33,23 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 analyzer = BrandFluidityAnalyzer()
 llm_analyzer = LLMAnalyzer()
+
+def convert_numpy_types(obj):
+    """Convert numpy types to Python native types for JSON serialization."""
+    if isinstance(obj, dict):
+        return {convert_numpy_types(key): convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 @app.post("/api/upload")
 async def upload_files(
@@ -139,6 +157,9 @@ async def analyze_brand(
         print("="*70)
         print("Analysis completed successfully!")
         print("="*70)
+        
+        # Convert numpy types to Python native types for JSON serialization
+        results = convert_numpy_types(results)
         
         return JSONResponse(results)
     
