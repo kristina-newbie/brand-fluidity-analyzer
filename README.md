@@ -48,6 +48,7 @@ The Brand Fluidity Analyzer calculates four core metrics based on academic resea
 - Python 3.8+
 - Node.js 14+ (for frontend)
 - Anthropic API key (for AI insights)
+- ~2GB free disk space (for ML models)
 
 ### Backend Setup
 
@@ -57,6 +58,20 @@ The Brand Fluidity Analyzer calculates four core metrics based on academic resea
 cd backend
 pip install -r requirements.txt --break-system-packages
 ```
+
+Required packages include:
+- `fastapi` - API framework
+- `uvicorn` - ASGI server
+- `torch` - PyTorch for deep learning
+- `clip` - OpenAI's CLIP model
+- `sentence-transformers` - Sentence-BERT
+- `nltk` - Natural language toolkit
+- `gensim` - Topic modeling
+- `opencv-python` - Computer vision
+- `anthropic` - Claude API client
+- `numpy` - Numerical computing
+- `pandas` - Data manipulation
+- `scikit-learn` - Machine learning utilities
 
 2. **Download NLTK data:**
 
@@ -71,6 +86,11 @@ cp .env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY
 ```
 
+Or create a `.env` file with:
+```
+ANTHROPIC_API_KEY=your_api_key_here
+```
+
 4. **Run the backend:**
 
 ```bash
@@ -78,6 +98,8 @@ python main.py
 ```
 
 The API will be available at `http://localhost:8000`
+
+**First run**: Models (CLIP, Sentence-BERT) will download automatically (~400MB). This may take a few minutes.
 
 ### Frontend Setup
 
@@ -323,28 +345,121 @@ The React component is fully customizable:
 
 ## 🐛 Troubleshooting
 
-### "ModuleNotFoundError: No module named 'torch'"
+### Installation Issues
+
+#### "ModuleNotFoundError: No module named 'torch'"
 ```bash
 pip install torch torchvision --break-system-packages
 ```
 
-### "CLIP model download fails"
-The model downloads automatically on first run. Ensure internet connection and sufficient disk space (~400MB).
+#### "ModuleNotFoundError: No module named 'clip'"
+```bash
+pip install git+https://github.com/openai/CLIP.git
+```
 
-### "NLTK data not found"
+#### "NLTK data not found"
 ```python
 import nltk
 nltk.download('vader_lexicon')
 nltk.download('punkt')
 ```
 
-### "CORS errors in frontend"
-Ensure backend is running and `API_URL` in frontend matches backend address.
+### Model & Network Issues
 
-### "Analysis takes too long"
-- Reduce image count or resize images
-- Use fewer text samples
-- Run on a machine with GPU support for faster embedding generation
+#### "CLIP model download fails"
+The model downloads automatically on first run. Ensure:
+- Active internet connection
+- Sufficient disk space (~400MB for models)
+- No firewall blocking GitHub/Hugging Face
+
+If download fails, try:
+```python
+import clip
+clip.load("ViT-B/32", device="cpu")  # Forces download
+```
+
+#### "Sentence-BERT model download fails"
+```python
+from sentence_transformers import SentenceTransformer
+SentenceTransformer('all-MiniLM-L6-v2')  # Forces download
+```
+
+### Runtime Errors
+
+#### "Analysis failed: Internal Server Error" or "500 Internal Server Error"
+
+**Check backend logs** in the terminal where you ran `python main.py`. Common causes:
+
+1. **Memory Error** (too many images):
+   - Solution: Process in smaller batches (reduce image count)
+   - Or: Increase system memory/swap
+
+2. **CUDA/GPU Error**:
+   ```python
+   # In brand_fluidity_analyzer.py, force CPU usage:
+   device = "cpu"  # Instead of "cuda"
+   ```
+
+3. **JSON Serialization Error** (`TypeError: keys must be str, int, float, bool or None, not numpy.int32`):
+   - **Fixed in latest version** - ensure your `main.py` has the `convert_numpy_types()` function
+   - Update with the latest code that includes numpy type conversion
+
+#### "CORS errors in frontend"
+Ensure:
+- Backend is running on `http://localhost:8000`
+- Frontend `API_URL` matches backend address
+- CORS is enabled in `main.py` (already configured)
+
+#### "Analysis takes too long"
+Performance tips:
+- **Reduce file count**: 20-50 files per analysis is optimal
+- **Resize images**: Keep under 1MB each
+- **Use GPU**: Install CUDA-enabled PyTorch for 3-5x speedup
+- **Batch processing**: Already implemented for large image sets
+
+### Data Issues
+
+#### "Insufficient data" errors
+- Need at least **2 text files** for TFI calculation
+- Need at least **2 images** for VFI calculation
+- Year detection requires year in filename (e.g., `brand_2023.txt`)
+
+#### "Year not detected from filename"
+Filename must contain 4-digit year:
+```
+✅ Good: nike_2020_manifesto.txt, campaign_2021.jpg
+❌ Bad: manifesto.txt, campaign.jpg
+```
+
+Files without years default to 2024.
+
+### API Issues
+
+#### "Brand not found" (404)
+- Ensure you clicked "Upload Files" before "Analyze"
+- Check that files were successfully uploaded
+- Verify brand name matches exactly (case-sensitive)
+
+#### "Anthropic API Error"
+- Check your `.env` file has valid `ANTHROPIC_API_KEY`
+- Verify API key has sufficient credits
+- Check [Anthropic status page](https://status.anthropic.com)
+
+### Debug Mode
+
+For detailed error messages, run backend with:
+```bash
+python3 main.py  # Already has detailed logging
+```
+
+Look for:
+```
+======================================================================
+ERROR OCCURRED DURING ANALYSIS:
+Error type: [Error Name]
+Error message: [Details]
+======================================================================
+```
 
 ## 📝 File Naming Conventions
 
@@ -361,12 +476,38 @@ For automatic year detection, include year in filename:
 - campaign.jpg (defaults to 2024)
 ```
 
+## 📂 Project Structure
+
+```
+brand-fluidity-analyzer/
+├── backend/
+│   ├── main.py                      # FastAPI server with error handling
+│   ├── brand_fluidity_analyzer.py   # Core metrics calculation
+│   ├── llm_analyzer.py              # Claude AI insights
+│   ├── requirements.txt             # Python dependencies
+│   ├── .env                         # Environment variables (create this)
+│   └── uploads/                     # Uploaded files (auto-created)
+│       └── {brand_name}/
+│           ├── texts/
+│           └── images/
+├── frontend/
+│   └── BrandFluidityAnalyzer.jsx    # React component
+├── IJRM-Core_Metrics.docx           # Research documentation
+└── README.md                        # This file
+```
+
 ## 🔐 Security Notes
 
-- The app stores uploaded files in `/uploads` directory
-- No files are sent to external services except Claude API for insights
+- The app stores uploaded files in `/backend/uploads` directory
+- Only text content and image embeddings are sent to Claude API for insights
 - Delete brands after analysis to manage storage
-- In production, implement authentication and rate limiting
+- In production, implement:
+  - Authentication/authorization
+  - Rate limiting
+  - Input validation and sanitization
+  - HTTPS/TLS
+  - File size limits
+  - Restricted CORS origins
 
 ## 📄 License
 
@@ -374,23 +515,44 @@ This project is based on academic research in brand semiotics and fluidity theor
 
 ## 🙏 Acknowledgments
 
-- CLIP model by OpenAI
-- Sentence-BERT by UKP Lab
-- Brand fluidity metrics based on liquid modernity theory (Bauman)
+- **CLIP** by OpenAI - Vision-language model
+- **Sentence-BERT** by UKP Lab - Semantic text embeddings
+- **Claude** by Anthropic - Strategic insights generation
+- **Brand fluidity metrics** based on liquid modernity theory (Bauman, 2000)
 
 ## 💡 Future Enhancements
 
 - [ ] Multi-brand comparative analysis
-- [ ] Time-series visualizations
-- [ ] Export reports as PDF
-- [ ] Real-time brand monitoring
-- [ ] Social media API integrations
+- [ ] Time-series visualizations with charts
+- [ ] Export reports as PDF with branded templates
+- [ ] Real-time brand monitoring via APIs
+- [ ] Social media API integrations (Twitter, Instagram)
 - [ ] Custom metric builder UI
 - [ ] Historical benchmark database
+- [ ] GPU acceleration for faster processing
+- [ ] Batch analysis for multiple brands
+- [ ] Advanced filtering and search
 
 ## 📧 Support
 
-For issues or questions, please refer to the research documentation in `IJRM-Core_Metrics.docx`.
+For issues or questions:
+1. Check the **Troubleshooting** section above
+2. Review backend logs in terminal for detailed errors
+3. Refer to research documentation in `IJRM-Core_Metrics.docx`
+4. Open an issue on GitHub with:
+   - Error message from terminal
+   - Steps to reproduce
+   - File counts and sizes
+   - Python version and OS
+
+## 🔄 Recent Updates
+
+**v1.1.0** (December 2024)
+- ✅ Fixed JSON serialization error for numpy types
+- ✅ Added comprehensive error handling and logging
+- ✅ Improved memory management for large image sets
+- ✅ Enhanced debugging output for troubleshooting
+- ✅ Added numpy type conversion utility
 
 ---
 
