@@ -1,20 +1,23 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import List, Optional
+from typing import List, Optional, Dict
 import os
 import json
 import shutil
+import re
 from pathlib import Path
+from collections import defaultdict
 import uvicorn
 import traceback
 import numpy as np
 from dotenv import load_dotenv
 load_dotenv()
-from brand_fluidity_analyzer import BrandFluidityAnalyzer
+
+from brand_fluidity_analyzer_v2 import BrandFluidityAnalyzerV2
 from llm_analyzer import LLMAnalyzer
 
-app = FastAPI(title="Brand Fluidity Analyzer API")
+app = FastAPI(title="Brand Fluidity Analyzer API", version="2.0")
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -31,13 +34,100 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 (UPLOAD_DIR / "texts").mkdir(exist_ok=True)
 (UPLOAD_DIR / "images").mkdir(exist_ok=True)
 
-analyzer = BrandFluidityAnalyzer()
+analyzer = BrandFluidityAnalyzerV2()
 llm_analyzer = LLMAnalyzer()
+
+
+def extract_year_from_filename(filename: str) -> Optional[str]:
+    """
+    Extract year from filename.
+    Looks for 4-digit years (2015-2025) in filename.
+    """
+    match = re.search(r'(20[12][0-9])', filename)
+    if match:
+        return match.group(1)
+    return None
+
+
+def load_texts_by_period(text_dir: Path) -> Dict[str, List[str]]:
+    """
+    Load text files and organize by period (year).
+    
+    Args:
+        text_dir: Directory containing text files
+        
+    Returns:
+        Dict mapping year strings to lists of text content
+    """
+    texts_by_period = defaultdict(list)
+    
+    if not text_dir.exists():
+        return dict(texts_by_period)
+    
+    for text_file in text_dir.glob("*"):
+        if text_file.is_file() and text_file.suffix.lower() in ['.txt', '.md', '.doc', '.docx']:
+            try:
+                # Try to read text content
+                content = text_file.read_text(encoding='utf-8', errors='ignore')
+                
+                # Extract year from filename
+                year = extract_year_from_filename(text_file.name)
+                
+                if year:
+                    texts_by_period[year].append(content)
+                else:
+                    # Default to "unknown" period if no year found
+                    texts_by_period["unknown"].append(content)
+                    
+            except Exception as e:
+                print(f"Error reading {text_file}: {e}")
+                continue
+    
+    # Remove "unknown" period if we have dated content
+    if "unknown" in texts_by_period and len(texts_by_period) > 1:
+        del texts_by_period["unknown"]
+    
+    return dict(texts_by_period)
+
+
+def load_images_by_period(image_dir: Path) -> Dict[str, List[str]]:
+    """
+    Load image paths and organize by period (year).
+    
+    Args:
+        image_dir: Directory containing image files
+        
+    Returns:
+        Dict mapping year strings to lists of image paths
+    """
+    images_by_period = defaultdict(list)
+    
+    if not image_dir.exists():
+        return dict(images_by_period)
+    
+    valid_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+    
+    for image_file in image_dir.glob("*"):
+        if image_file.is_file() and image_file.suffix.lower() in valid_extensions:
+            # Extract year from filename
+            year = extract_year_from_filename(image_file.name)
+            
+            if year:
+                images_by_period[year].append(str(image_file))
+            else:
+                # Default to "unknown" period if no year found
+                images_by_period["unknown"].append(str(image_file))
+    
+    # Remove "unknown" period if we have dated content
+    if "unknown" in images_by_period and len(images_by_period) > 1:
+        del images_by_period["unknown"]
+    
+    return dict(images_by_period)
+
 
 def convert_numpy_types(obj):
     """Convert numpy types to Python native types for JSON serialization."""
     if isinstance(obj, dict):
-        # Convert both keys and values - keys might be numpy types too!
         return {
             (int(key) if isinstance(key, np.integer) else 
              float(key) if isinstance(key, np.floating) else 
@@ -60,6 +150,7 @@ def convert_numpy_types(obj):
     else:
         return obj
 
+
 @app.post("/api/upload")
 async def upload_files(
     brand_name: str = Form(...),
@@ -69,10 +160,12 @@ async def upload_files(
 ):
     """
     Upload brand materials (texts and images) for analysis.
-    years should be a JSON string mapping filenames to years.
+    
+    Files should include year in filename (e.g., 'brand_copy_2019.txt', 'campaign_2021.jpg')
+    for automatic period detection. Alternatively, provide years as JSON mapping.
     """
     try:
-        # Parse year mapping
+        # Parse year mapping if provided
         year_mapping = json.loads(years) if years else {}
         
         # Create brand directory
@@ -86,25 +179,45 @@ async def upload_files(
         # Save text files
         text_files = []
         for text_file in texts:
-            file_path = text_dir / text_file.filename
+            # If year mapping provided, rename file to include year
+            filename = text_file.filename
+            if text_file.filename in year_mapping:
+                year = year_mapping[text_file.filename]
+                base, ext = os.path.splitext(filename)
+                if not extract_year_from_filename(filename):
+                    filename = f"{base}_{year}{ext}"
+            
+            file_path = text_dir / filename
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(text_file.file, f)
+            
+            detected_year = extract_year_from_filename(filename)
             text_files.append({
-                "filename": text_file.filename,
+                "filename": filename,
                 "path": str(file_path),
-                "year": year_mapping.get(text_file.filename, None)
+                "year": detected_year
             })
         
         # Save image files
         image_files = []
         for image_file in images:
-            file_path = image_dir / image_file.filename
+            # If year mapping provided, rename file to include year
+            filename = image_file.filename
+            if image_file.filename in year_mapping:
+                year = year_mapping[image_file.filename]
+                base, ext = os.path.splitext(filename)
+                if not extract_year_from_filename(filename):
+                    filename = f"{base}_{year}{ext}"
+            
+            file_path = image_dir / filename
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(image_file.file, f)
+            
+            detected_year = extract_year_from_filename(filename)
             image_files.append({
-                "filename": image_file.filename,
+                "filename": filename,
                 "path": str(file_path),
-                "year": year_mapping.get(image_file.filename, None)
+                "year": detected_year
             })
         
         return JSONResponse({
@@ -119,6 +232,7 @@ async def upload_files(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/analyze")
 async def analyze_brand(
     brand_name: str = Form(...),
@@ -126,6 +240,11 @@ async def analyze_brand(
 ):
     """
     Analyze brand fluidity metrics for uploaded materials.
+    
+    Returns comprehensive fluidity analysis including:
+    - Core metrics: TFI, VFI, CMCS, BFI
+    - Second-order metrics: Drift volatility, coherence trajectory, drift ratio, etc.
+    - Optional LLM-generated strategic insights
     """
     try:
         print("="*70)
@@ -135,23 +254,34 @@ async def analyze_brand(
         
         brand_dir = UPLOAD_DIR / brand_name.replace(" ", "_")
         if not brand_dir.exists():
-            raise HTTPException(status_code=404, detail="Brand not found")
+            raise HTTPException(status_code=404, detail="Brand not found. Please upload files first.")
         
         text_dir = brand_dir / "texts"
         image_dir = brand_dir / "images"
         
-        # Count files
-        text_files = list(text_dir.glob("*")) if text_dir.exists() else []
-        image_files = list(image_dir.glob("*")) if image_dir.exists() else []
+        # Load and organize data by period
+        print("\nLoading and organizing data by period...")
+        texts_by_period = load_texts_by_period(text_dir)
+        images_by_period = load_images_by_period(image_dir)
         
-        print(f"Found {len(text_files)} text files in {text_dir}")
-        print(f"Found {len(image_files)} image files in {image_dir}")
+        # Report what was found
+        text_count = sum(len(texts) for texts in texts_by_period.values())
+        image_count = sum(len(imgs) for imgs in images_by_period.values())
         
-        # Run analysis
-        print("\nStarting Brand Fluidity Analysis...")
+        print(f"Found {text_count} texts across {len(texts_by_period)} periods: {sorted(texts_by_period.keys())}")
+        print(f"Found {image_count} images across {len(images_by_period)} periods: {sorted(images_by_period.keys())}")
+        
+        if text_count == 0 and image_count == 0:
+            raise HTTPException(
+                status_code=400, 
+                detail="No valid text or image files found. Ensure files have year in filename (e.g., 'content_2019.txt')."
+            )
+        
+        # Run analysis with v2 analyzer
+        print("\nStarting Brand Fluidity Analysis v2.0...")
         results = analyzer.analyze_brand(
-            text_dir=str(text_dir),
-            image_dir=str(image_dir),
+            texts_by_period=texts_by_period,
+            images_by_period=images_by_period,
             brand_name=brand_name
         )
         print("Brand Fluidity Analysis completed successfully!")
@@ -167,13 +297,15 @@ async def analyze_brand(
         print("Analysis completed successfully!")
         print("="*70)
         
-        # Convert numpy types to Python native types for JSON serialization
+        # Convert numpy types for JSON serialization
         print("Converting numpy types to Python native types...")
         results = convert_numpy_types(results)
         print("Conversion completed!")
         
         return JSONResponse(results)
     
+    except HTTPException:
+        raise
     except Exception as e:
         print("="*70)
         print("ERROR OCCURRED DURING ANALYSIS:")
@@ -185,20 +317,33 @@ async def analyze_brand(
         print("="*70)
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/brands")
 async def list_brands():
-    """List all analyzed brands."""
+    """List all analyzed brands with file counts and detected periods."""
     brands = []
     for brand_dir in UPLOAD_DIR.iterdir():
         if brand_dir.is_dir():
-            text_count = len(list((brand_dir / "texts").glob("*"))) if (brand_dir / "texts").exists() else 0
-            image_count = len(list((brand_dir / "images").glob("*"))) if (brand_dir / "images").exists() else 0
+            text_dir = brand_dir / "texts"
+            image_dir = brand_dir / "images"
+            
+            texts_by_period = load_texts_by_period(text_dir)
+            images_by_period = load_images_by_period(image_dir)
+            
+            text_count = sum(len(texts) for texts in texts_by_period.values())
+            image_count = sum(len(imgs) for imgs in images_by_period.values())
+            
+            all_periods = sorted(set(texts_by_period.keys()) | set(images_by_period.keys()))
+            
             brands.append({
                 "name": brand_dir.name.replace("_", " "),
                 "text_count": text_count,
-                "image_count": image_count
+                "image_count": image_count,
+                "periods": all_periods,
+                "n_periods": len(all_periods)
             })
     return {"brands": brands}
+
 
 @app.delete("/api/brands/{brand_name}")
 async def delete_brand(brand_name: str):
@@ -213,9 +358,20 @@ async def delete_brand(brand_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/")
 async def root():
-    return {"message": "Brand Fluidity Analyzer API", "version": "1.0"}
+    return {
+        "message": "Brand Fluidity Analyzer API",
+        "version": "2.0",
+        "features": [
+            "Core metrics: TFI, VFI, CMCS, BFI",
+            "Second-order metrics: Drift volatility, coherence trajectory, drift ratio",
+            "Directional consistency and topic-semantic decoupling",
+            "LLM-powered strategic insights"
+        ]
+    }
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
