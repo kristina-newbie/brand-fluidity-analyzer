@@ -18,7 +18,8 @@ def test_imports():
         'nltk': 'NLTK',
         'gensim': 'Gensim',
         'PIL': 'Pillow',
-        'anthropic': 'Anthropic'
+        'anthropic': 'Anthropic',
+        'scipy': 'SciPy'
     }
     
     failed = []
@@ -76,15 +77,15 @@ def test_models():
     return True
 
 def test_analyzer():
-    """Test if BrandFluidityAnalyzer can be instantiated."""
-    print("\nTesting BrandFluidityAnalyzer...")
+    """Test if BrandFluidityAnalyzerV2 can be instantiated."""
+    print("\nTesting BrandFluidityAnalyzerV2...")
     try:
-        from brand_fluidity_analyzer import BrandFluidityAnalyzer
-        analyzer = BrandFluidityAnalyzer()
-        print("  ✓ BrandFluidityAnalyzer initialized successfully")
+        from brand_fluidity_analyzer_v2 import BrandFluidityAnalyzerV2
+        analyzer = BrandFluidityAnalyzerV2()
+        print("  ✓ BrandFluidityAnalyzerV2 initialized successfully")
         return True
     except Exception as e:
-        print(f"  ✗ BrandFluidityAnalyzer failed - {e}")
+        print(f"  ✗ BrandFluidityAnalyzerV2 failed - {e}")
         return False
 
 def test_api_key():
@@ -107,7 +108,7 @@ def test_api_key():
 
 def main():
     print("=" * 60)
-    print("Brand Fluidity Analyzer - Setup Verification")
+    print("Brand Fluidity Analyzer v2.0 - Setup Verification")
     print("=" * 60)
     print()
     
