@@ -71,6 +71,15 @@ class LLMAnalyzer:
                 "insights": f"Error generating insights: {str(e)}"
             }
     
+    def _safe_float(self, value, default=0.0) -> float:
+        """Safely convert value to float."""
+        if value is None:
+            return default
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+    
     def _create_analysis_prompt(self, results: Dict) -> str:
         """Create a detailed prompt for Claude to analyze the metrics."""
         
@@ -85,71 +94,76 @@ class LLMAnalyzer:
         summary = results.get("summary", {})
         periods = results.get("periods_analyzed", [])
         
-        # Core metrics
-        tfi = textual.get("tfi", 0)
-        semantic_drift = textual.get("semantic_drift", 0)
-        tone_diversity = textual.get("tone_diversity", 0)
-        topic_turnover = textual.get("topic_turnover", 0)
+        # Core metrics - safely convert to float
+        tfi = self._safe_float(textual.get("tfi"))
+        semantic_drift = self._safe_float(textual.get("semantic_drift"))
+        tone_diversity = self._safe_float(textual.get("tone_diversity"))
+        topic_turnover = self._safe_float(textual.get("topic_turnover"))
         
-        vfi = visual.get("vfi", 0)
-        visual_drift = visual.get("visual_drift", 0)
-        color_entropy = visual.get("color_entropy", 0)
-        motif_diversity = visual.get("motif_diversity", 0)
-        motif_uniqueness = visual.get("motif_uniqueness", 0)
-        motif_evenness = visual.get("motif_evenness", 0)
+        vfi = self._safe_float(visual.get("vfi"))
+        visual_drift = self._safe_float(visual.get("visual_drift"))
+        color_entropy = self._safe_float(visual.get("color_entropy"))
+        motif_diversity = self._safe_float(visual.get("motif_diversity"))
+        motif_uniqueness = self._safe_float(visual.get("motif_uniqueness"))
+        motif_evenness = self._safe_float(visual.get("motif_evenness"))
         
-        cmcs = coherence.get("cmcs", 0)
-        temporal_coherence = coherence.get("temporal_coherence", 0)
+        cmcs = self._safe_float(coherence.get("cmcs"))
+        temporal_coherence = self._safe_float(coherence.get("temporal_coherence"))
         
-        bfi_score = bfi.get("score", 0)
+        bfi_score = self._safe_float(bfi.get("score"))
         bfi_category = bfi.get("category", "Unknown")
         bfi_description = bfi.get("description", "N/A")
         
         # Second-order metrics
-        semantic_drift_volatility = second_order.get("semantic_drift_volatility", 0)
-        visual_drift_volatility = second_order.get("visual_drift_volatility", 0)
-        coherence_trajectory = second_order.get("coherence_trajectory", 0)
-        drift_ratio = second_order.get("drift_ratio", 0)
-        directional_consistency_text = second_order.get("directional_consistency_text", 0)
-        directional_consistency_visual = second_order.get("directional_consistency_visual", 0)
-        topic_semantic_decoupling = second_order.get("topic_semantic_decoupling", 0)
+        semantic_drift_volatility = self._safe_float(second_order.get("semantic_drift_volatility"))
+        visual_drift_volatility = self._safe_float(second_order.get("visual_drift_volatility"))
+        coherence_trajectory = self._safe_float(second_order.get("coherence_trajectory"))
+        drift_ratio = self._safe_float(second_order.get("drift_ratio"))
+        directional_consistency_text = self._safe_float(second_order.get("directional_consistency_text"))
+        directional_consistency_visual = self._safe_float(second_order.get("directional_consistency_visual"))
+        topic_semantic_decoupling = self._safe_float(second_order.get("topic_semantic_decoupling"))
         
-        # Period similarities for evolution analysis
-        text_period_sims = textual.get("period_similarities", [])
-        visual_period_sims = visual.get("period_similarities", [])
-        period_coherences = coherence.get("period_coherences", [])
+        # Period similarities for evolution analysis (these are DICTS, not lists)
+        text_period_sims = textual.get("period_similarities", {})
+        visual_period_sims = visual.get("period_similarities", {})
+        period_coherences = coherence.get("period_coherences", {})
         
-        # Format period-by-period evolution
+        # Format period-by-period evolution from dict format {"2015->2017": 0.85, ...}
         text_evolution = ""
-        if text_period_sims and len(periods) > 1:
+        if isinstance(text_period_sims, dict) and text_period_sims:
             text_evolution = "\n   Period-by-period textual stability:\n"
-            for i, sim in enumerate(text_period_sims):
-                if i < len(periods) - 1:
-                    text_evolution += f"   - {periods[i]} → {periods[i+1]}: {sim:.3f} similarity (drift: {1-sim:.3f})\n"
+            for transition, sim in sorted(text_period_sims.items()):
+                sim_val = self._safe_float(sim)
+                text_evolution += f"   - {transition}: {sim_val:.3f} similarity (drift: {1-sim_val:.3f})\n"
         
         visual_evolution = ""
-        if visual_period_sims and len(periods) > 1:
+        if isinstance(visual_period_sims, dict) and visual_period_sims:
             visual_evolution = "\n   Period-by-period visual stability:\n"
-            for i, sim in enumerate(visual_period_sims):
-                if i < len(periods) - 1:
-                    visual_evolution += f"   - {periods[i]} → {periods[i+1]}: {sim:.3f} similarity (drift: {1-sim:.3f})\n"
+            for transition, sim in sorted(visual_period_sims.items()):
+                sim_val = self._safe_float(sim)
+                visual_evolution += f"   - {transition}: {sim_val:.3f} similarity (drift: {1-sim_val:.3f})\n"
         
         coherence_evolution = ""
-        if period_coherences:
+        if isinstance(period_coherences, dict) and period_coherences:
             coherence_evolution = "\n   Period-by-period cross-modal coherence:\n"
-            for i, coh in enumerate(period_coherences):
-                if i < len(periods):
-                    coherence_evolution += f"   - {periods[i]}: {coh:.3f}\n"
+            for period, coh in sorted(period_coherences.items()):
+                coh_val = self._safe_float(coh)
+                coherence_evolution += f"   - {period}: {coh_val:.3f}\n"
 
         prompt = f"""You are a brand strategy analyst specializing in brand identity evolution and liquid modernity theory (Bauman, 2000). Analyze the following Brand Fluidity metrics for {brand_name} and provide strategic insights.
 
-## METHODOLOGY CONTEXT (v2.0)
+## METHODOLOGY CONTEXT (v4.0)
 
 This analysis uses the **Brand Fluidity Framework** with peer-reviewed computational methods:
 - **Sentence-BERT** for semantic embeddings (Reimers & Gurevych, 2019)
 - **CLIP** for visual embeddings (Radford et al., 2021)
 - **VADER** for sentiment analysis (Hutto & Gilbert, 2014)
 - **LDA** for topic modeling (Blei et al., 2003)
+
+**v4 Methodology**:
+- TFI = Semantic Drift only (Topic Turnover is diagnostic, not part of TFI)
+- VFI = Visual Drift only
+- BFI = 0.5×TFI + 0.5×VFI (CMCS is a separate coherence axis, not part of BFI)
 
 **Key insight from preliminary research**: Configuration of fluidity components predicts brand performance better than aggregate fluidity levels. Successful brands exhibit a "visual fortress with narrative flexibility" pattern—low visual drift combined with higher topic turnover.
 
@@ -170,25 +184,28 @@ This analysis uses the **Brand Fluidity Framework** with peer-reviewed computati
 ## CORE METRICS
 
 ### 1. Textual Fluidity Index (TFI): {tfi:.3f}
-   *Measures how much the brand's textual identity changed over time*
+   *Measures how much the brand's semantic identity changed over time*
+   *v4: TFI = Semantic Drift (normalized)*
    - Semantic Drift: {semantic_drift:.3f}
-   - Tone Diversity: {tone_diversity:.3f}
-   - Topic Turnover: {topic_turnover:.3f}{text_evolution}
+   - Tone Diversity: {tone_diversity:.3f} (descriptive, not in TFI)
+   - Topic Turnover: {topic_turnover:.3f} (diagnostic, not in TFI){text_evolution}
 
 ### 2. Visual Fluidity Index (VFI): {vfi:.3f}
    *Measures how much the brand's visual identity changed over time*
+   *v4: VFI = Visual Drift (normalized)*
    - Visual Drift: {visual_drift:.3f}
-   - Color Entropy: {color_entropy:.3f}
-   - Motif Diversity: {motif_diversity:.3f}
+   - Color Entropy: {color_entropy:.3f} (descriptive, not in VFI)
+   - Motif Diversity: {motif_diversity:.3f} (descriptive, not in VFI)
      - Uniqueness (cluster utilization): {motif_uniqueness:.3f}
      - Evenness (distribution entropy): {motif_evenness:.3f}{visual_evolution}
 
 ### 3. Cross-Modal Coherence Score (CMCS): {cmcs:.3f}
    *Measures semantic alignment between text and visual brand expressions*
+   *v4: Separate axis—not included in BFI*
    - Temporal Coherence: {temporal_coherence:.3f}{coherence_evolution}
 
 ### 4. Brand Fluidity Index (BFI): {bfi_score:.3f}
-   *Composite: BFI = 0.4×TFI + 0.4×VFI + 0.2×(1-CMCS)*
+   *v4 Composite: BFI = 0.5×TFI + 0.5×VFI*
    - Category: **{bfi_category}**
    - Description: {bfi_description}
 
@@ -199,7 +216,7 @@ This analysis uses the **Brand Fluidity Framework** with peer-reviewed computati
 These metrics capture HOW the brand evolves, not just how much:
 
 ### Drift Volatility
-*Coefficient of variation of drift scores—measures stability of evolution*
+*Standard deviation of drift scores—measures stability of evolution*
 - Semantic Drift Volatility: {semantic_drift_volatility:.3f}
 - Visual Drift Volatility: {visual_drift_volatility:.3f}
 - **Interpretation**: Low volatility = stable, predictable evolution. High volatility = erratic, reactive changes.
@@ -208,8 +225,8 @@ These metrics capture HOW the brand evolves, not just how much:
 *Slope of cross-modal coherence over time*
 - **Interpretation**: Positive = improving brand integration. Negative = degrading storytelling coherence.
 
-### Drift Ratio: {drift_ratio:.2f}
-*Semantic Drift / Visual Drift*
+### Drift Ratio: {drift_ratio:.1f}
+*Semantic Drift (raw) / Visual Drift (raw)*
 - **Interpretation**: >1 = messaging evolving faster than visuals. <1 = visuals evolving faster than messaging.
 - **Research benchmark**: High-performing brands cluster around 3.0-3.5 (visual anchor with narrative flexibility).
 
@@ -217,10 +234,10 @@ These metrics capture HOW the brand evolves, not just how much:
 *Whether evolution follows a consistent direction vs. random oscillation*
 - Textual: {directional_consistency_text:.3f}
 - Visual: {directional_consistency_visual:.3f}
-- **Interpretation**: Near 1 = purposeful evolution. Near 0 = random drift. Near -1 = oscillatory repositioning.
+- **Interpretation**: Near +1 = purposeful evolution. Near 0 = random drift. Near -1 = oscillatory repositioning.
 
-### Topic-Semantic Decoupling Index: {topic_semantic_decoupling:.2f}
-*Topic Turnover / Semantic Drift*
+### Topic-Semantic Decoupling Index (TSDI): {topic_semantic_decoupling:.1f}
+*Topic Turnover / Semantic Drift (raw)*
 - **Interpretation**: High TSDI = brand rotates themes while maintaining core semantic identity (cultural agility).
 - **Research benchmark**: Growing brands average ~3.5, declining brands ~2.7.
 
@@ -231,9 +248,9 @@ These metrics capture HOW the brand evolves, not just how much:
 | BFI Range | Category | Meaning |
 |-----------|----------|---------|
 | 0.00-0.30 | **Solid** | Highly consistent identity; minimal change |
-| 0.30-0.45 | **Semi-solid** | Strong core with controlled evolution |
-| 0.45-0.60 | **Semi-fluid** | Balanced stability and adaptability |
-| 0.60-1.00 | **Fluid** | Significant identity transformation |
+| 0.30-0.60 | **Semi-solid** | Strong core with controlled evolution |
+| 0.60-0.80 | **Semi-fluid** | Balanced stability and adaptability |
+| 0.80-1.00 | **Fluid** | Significant identity transformation |
 
 **Critical pattern**: The "Visual Fortress" configuration (low visual drift + high topic turnover + stable semantic core) characterizes high-performing brands.
 
@@ -247,7 +264,7 @@ Please provide your analysis in the following structure:
 ## 2. Core Metric Insights
 - What do the TFI/VFI/CMCS scores reveal individually?
 - Are textual and visual identities evolving in sync or diverging?
-- Comment on the topic turnover vs. semantic drift relationship
+- Comment on the topic turnover vs. semantic drift relationship (TSDI)
 
 ## 3. Second-Order Pattern Analysis
 This is crucial—analyze the PATTERN of evolution:
@@ -269,11 +286,6 @@ This is crucial—analyze the PATTERN of evolution:
 - Visual identity governance recommendations
 - Messaging/topic strategy recommendations
 - Specific period-based interventions if evolution patterns show concerning shifts
-
-## 6. Comparative Context
-- Is this fluidity configuration appropriate for the brand's category?
-- How does it compare to the "visual fortress" benchmark pattern?
-- Prognosis: Based on second-order metrics, is the brand trajectory healthy or concerning?
 
 Ground your analysis in brand theory, semiotics, and the empirical patterns from the research framework. Focus on actionable insights that connect the metric configuration to strategic brand decisions."""
 
