@@ -30,11 +30,19 @@ warnings.filterwarnings('ignore')
 
 @dataclass
 class NormalizationParams:
-    """Empirically-derived normalization parameters."""
+    """
+    Empirically-derived normalization parameters.
+    
+    These bounds are calibrated for period-centroid comparisons:
+    - Semantic drift: Period centroids have high similarity (0.75-0.95),
+      so drift values (1-similarity) typically range 0.05-0.25
+    - Visual drift: CLIP embeddings show similar patterns, 0.02-0.12
+    - CMCS: Cross-modal similarities typically 0.15-0.32
+    """
     cmcs_min: float = 0.15
     cmcs_max: float = 0.32
-    semantic_drift_min: float = 0.35
-    semantic_drift_max: float = 0.65
+    semantic_drift_min: float = 0.05
+    semantic_drift_max: float = 0.25
     visual_drift_min: float = 0.02
     visual_drift_max: float = 0.12
 
