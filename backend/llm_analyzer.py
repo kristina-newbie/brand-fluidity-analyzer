@@ -1,8 +1,11 @@
 """
-LLM Analyzer for Brand Fluidity Metrics (v2.0)
-Uses Claude API to generate strategic insights from brand fluidity analysis.
+LLM Analyzer for Brand Liquidity Metrics (v5.0)
+Uses Claude API to generate strategic insights from brand liquidity analysis.
 
-Updated for v2 methodology:
+Updated for v5 methodology:
+- Terminology aligned with Bauman's (2000) liquid modernity: Liquidity not Fluidity
+- TLI (Textual Liquidity Index), VLI (Visual Liquidity Index), BLI (Brand Liquidity Index)
+- CMCS computed via centroid-to-centroid cosine similarity in CLIP joint space
 - Integrates second-order metrics (drift volatility, coherence trajectory, etc.)
 - Aligns with IJRM research framework
 - Grounded in peer-reviewed computational methods
@@ -25,10 +28,10 @@ class LLMAnalyzer:
     
     async def generate_insights(self, analysis_results: Dict) -> Dict:
         """
-        Generate strategic insights from brand fluidity analysis.
+        Generate strategic insights from brand liquidity analysis.
         
         Args:
-            analysis_results: Complete analysis results from BrandFluidityAnalyzerV2
+            analysis_results: Complete analysis results from BrandLiquidityAnalyzer
             
         Returns:
             Dict containing insights, recommendations, and strategic analysis
@@ -85,22 +88,22 @@ class LLMAnalyzer:
         
         brand_name = results.get("brand_name", "Unknown Brand")
         
-        # Extract nested results (v2 structure)
+        # Extract nested results (v5 structure)
         textual = results.get("textual", {})
         visual = results.get("visual", {})
         coherence = results.get("coherence", {})
-        bfi = results.get("bfi", {})
+        bli = results.get("bli", {})
         second_order = results.get("second_order", {})
         summary = results.get("summary", {})
         periods = results.get("periods_analyzed", [])
         
         # Core metrics - safely convert to float
-        tfi = self._safe_float(textual.get("tfi"))
+        tli = self._safe_float(textual.get("tli"))
         semantic_drift = self._safe_float(textual.get("semantic_drift"))
         tone_diversity = self._safe_float(textual.get("tone_diversity"))
         topic_turnover = self._safe_float(textual.get("topic_turnover"))
         
-        vfi = self._safe_float(visual.get("vfi"))
+        vli = self._safe_float(visual.get("vli"))
         visual_drift = self._safe_float(visual.get("visual_drift"))
         color_entropy = self._safe_float(visual.get("color_entropy"))
         motif_diversity = self._safe_float(visual.get("motif_diversity"))
@@ -110,9 +113,9 @@ class LLMAnalyzer:
         cmcs = self._safe_float(coherence.get("cmcs"))
         temporal_coherence = self._safe_float(coherence.get("temporal_coherence"))
         
-        bfi_score = self._safe_float(bfi.get("score"))
-        bfi_category = bfi.get("category", "Unknown")
-        bfi_description = bfi.get("description", "N/A")
+        bli_score = self._safe_float(bli.get("score"))
+        bli_category = bli.get("category", "Unknown")
+        bli_description = bli.get("description", "N/A")
         
         # Second-order metrics
         semantic_drift_volatility = self._safe_float(second_order.get("semantic_drift_volatility"))
@@ -150,26 +153,27 @@ class LLMAnalyzer:
                 coh_val = self._safe_float(coh)
                 coherence_evolution += f"   - {period}: {coh_val:.3f}\n"
 
-        prompt = f"""You are a brand strategy analyst specializing in brand identity evolution and liquid modernity theory (Bauman, 2000). Analyze the following Brand Fluidity metrics for {brand_name} and provide strategic insights.
+        prompt = f"""You are a brand strategy analyst specializing in brand identity evolution and liquid modernity theory (Bauman, 2000). Analyze the following Brand Liquidity metrics for {brand_name} and provide strategic insights.
 
-## METHODOLOGY CONTEXT (v4.0)
+## METHODOLOGY CONTEXT (v5.0)
 
-This analysis uses the **Brand Fluidity Framework** with peer-reviewed computational methods:
+This analysis uses the **Brand Liquidity Framework** grounded in Bauman's (2000) liquid modernity theory, with peer-reviewed computational methods:
 - **Sentence-BERT** for semantic embeddings (Reimers & Gurevych, 2019)
-- **CLIP** for visual embeddings (Radford et al., 2021)
+- **CLIP** for visual embeddings and cross-modal coherence (Radford et al., 2021)
 - **VADER** for sentiment analysis (Hutto & Gilbert, 2014)
 - **LDA** for topic modeling (Blei et al., 2003)
 
-**v4 Methodology**:
-- TFI = Semantic Drift only (Topic Turnover is diagnostic, not part of TFI)
-- VFI = Visual Drift only
-- BFI = 0.5×TFI + 0.5×VFI (CMCS is a separate coherence axis, not part of BFI)
+**v5 Methodology**:
+- TLI = Semantic Drift only (Topic Turnover is diagnostic, not part of TLI)
+- VLI = Visual Drift only
+- BLI = 0.5 x TLI + 0.5 x VLI (CMCS is a separate coherence axis, not part of BLI)
+- CMCS = Centroid-to-centroid cosine similarity in CLIP's joint latent space (holistic brand territory alignment, not paired text-image matching)
 
-**Key insight from preliminary research**: Configuration of fluidity components predicts brand performance better than aggregate fluidity levels. Successful brands exhibit a "visual fortress with narrative flexibility" pattern—low visual drift combined with higher topic turnover.
+**Key insight from preliminary research**: Configuration of liquidity components predicts brand performance better than aggregate liquidity levels. Successful brands exhibit a "visual fortress with narrative flexibility" pattern — low visual drift combined with higher topic turnover.
 
 ---
 
-## Brand Fluidity Analysis Results
+## Brand Liquidity Analysis Results
 
 **Brand:** {brand_name}
 **Periods Analyzed:** {', '.join(map(str, periods)) if periods else 'Not specified'}
@@ -183,31 +187,32 @@ This analysis uses the **Brand Fluidity Framework** with peer-reviewed computati
 
 ## CORE METRICS
 
-### 1. Textual Fluidity Index (TFI): {tfi:.3f}
+### 1. Textual Liquidity Index (TLI): {tli:.3f}
    *Measures how much the brand's semantic identity changed over time*
-   *v4: TFI = Semantic Drift (normalized)*
+   *TLI = Semantic Drift (normalized)*
    - Semantic Drift: {semantic_drift:.3f}
-   - Tone Diversity: {tone_diversity:.3f} (descriptive, not in TFI)
-   - Topic Turnover: {topic_turnover:.3f} (diagnostic, not in TFI){text_evolution}
+   - Tone Diversity: {tone_diversity:.3f} (descriptive, not in TLI)
+   - Topic Turnover: {topic_turnover:.3f} (diagnostic, not in TLI){text_evolution}
 
-### 2. Visual Fluidity Index (VFI): {vfi:.3f}
+### 2. Visual Liquidity Index (VLI): {vli:.3f}
    *Measures how much the brand's visual identity changed over time*
-   *v4: VFI = Visual Drift (normalized)*
+   *VLI = Visual Drift (normalized)*
    - Visual Drift: {visual_drift:.3f}
-   - Color Entropy: {color_entropy:.3f} (descriptive, not in VFI)
-   - Motif Diversity: {motif_diversity:.3f} (descriptive, not in VFI)
+   - Color Entropy: {color_entropy:.3f} (descriptive, not in VLI)
+   - Motif Diversity: {motif_diversity:.3f} (descriptive, not in VLI)
      - Uniqueness (cluster utilization): {motif_uniqueness:.3f}
      - Evenness (distribution entropy): {motif_evenness:.3f}{visual_evolution}
 
 ### 3. Cross-Modal Coherence Score (CMCS): {cmcs:.3f}
-   *Measures semantic alignment between text and visual brand expressions*
-   *v4: Separate axis—not included in BFI*
+   *Measures holistic semantic alignment between textual and visual brand territories*
+   *Centroid-to-centroid cosine similarity in CLIP joint space (Kapferer's Brand Identity Prism)*
+   *Separate axis — not included in BLI*
    - Temporal Coherence: {temporal_coherence:.3f}{coherence_evolution}
 
-### 4. Brand Fluidity Index (BFI): {bfi_score:.3f}
-   *v4 Composite: BFI = 0.5×TFI + 0.5×VFI*
-   - Category: **{bfi_category}**
-   - Description: {bfi_description}
+### 4. Brand Liquidity Index (BLI): {bli_score:.3f}
+   *Composite: BLI = 0.5 x TLI + 0.5 x VLI*
+   - Category: **{bli_category}**
+   - Description: {bli_description}
 
 ---
 
@@ -216,7 +221,7 @@ This analysis uses the **Brand Fluidity Framework** with peer-reviewed computati
 These metrics capture HOW the brand evolves, not just how much:
 
 ### Drift Volatility
-*Standard deviation of drift scores—measures stability of evolution*
+*Standard deviation of drift scores — measures stability of evolution*
 - Semantic Drift Volatility: {semantic_drift_volatility:.3f}
 - Visual Drift Volatility: {visual_drift_volatility:.3f}
 - **Interpretation**: Low volatility = stable, predictable evolution. High volatility = erratic, reactive changes.
@@ -245,12 +250,12 @@ These metrics capture HOW the brand evolves, not just how much:
 
 ## INTERPRETATION FRAMEWORK
 
-| BFI Range | Category | Meaning |
+| BLI Range | Category | Meaning |
 |-----------|----------|---------|
 | 0.00-0.30 | **Solid** | Highly consistent identity; minimal change |
 | 0.30-0.60 | **Semi-solid** | Strong core with controlled evolution |
-| 0.60-0.80 | **Semi-fluid** | Balanced stability and adaptability |
-| 0.80-1.00 | **Fluid** | Significant identity transformation |
+| 0.60-0.80 | **Semi-liquid** | Balanced stability and adaptability |
+| 0.80-1.00 | **Liquid** | Significant identity transformation |
 
 **Critical pattern**: The "Visual Fortress" configuration (low visual drift + high topic turnover + stable semantic core) characterizes high-performing brands.
 
@@ -259,15 +264,15 @@ These metrics capture HOW the brand evolves, not just how much:
 Please provide your analysis in the following structure:
 
 ## 1. Executive Summary
-2-3 sentences on what this brand's fluidity profile reveals about their identity strategy and the {len(periods) if periods else 'analyzed'}-period evolution.
+2-3 sentences on what this brand's liquidity profile reveals about their identity strategy and the {len(periods) if periods else 'analyzed'}-period evolution.
 
 ## 2. Core Metric Insights
-- What do the TFI/VFI/CMCS scores reveal individually?
+- What do the TLI/VLI/CMCS scores reveal individually?
 - Are textual and visual identities evolving in sync or diverging?
 - Comment on the topic turnover vs. semantic drift relationship (TSDI)
 
 ## 3. Second-Order Pattern Analysis
-This is crucial—analyze the PATTERN of evolution:
+This is crucial — analyze the PATTERN of evolution:
 - Is the brand's evolution stable and controlled (low drift volatility) or erratic?
 - What does the coherence trajectory suggest about brand management quality?
 - Does the drift ratio indicate "visual fortress" strategy or visual instability?
