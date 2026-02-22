@@ -55,10 +55,16 @@ class NormalizationParams:
     - Semantic drift: Period centroids have high similarity (0.75-0.95),
       so drift values (1-similarity) typically range 0.05-0.25
     - Visual drift: CLIP embeddings show similar patterns, 0.02-0.12
-    - CMCS: Cross-modal centroid-to-centroid similarities typically 0.15-0.32
+    - CMCS: Cross-modal centroid-to-centroid similarities typically 0.20-0.45.
+      Bounds recalibrated for v5.0 centroid method (previously 0.15-0.32
+      for paired-diagonal method). Centroid averaging eliminates within-
+      group variance, mechanically increasing cosine similarity relative
+      to individual-pair measurement (Robinson, 1950; ecological
+      correlation effect). Upper bound reflects CLIP's inherent modality
+      gap ceiling (Liang et al., 2022).
     """
-    cmcs_min: float = 0.15
-    cmcs_max: float = 0.32
+    cmcs_min: float = 0.20
+    cmcs_max: float = 0.45
     semantic_drift_min: float = 0.05
     semantic_drift_max: float = 0.25
     visual_drift_min: float = 0.02
