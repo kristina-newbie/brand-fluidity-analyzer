@@ -1,11 +1,29 @@
 """
-Brand Fluidity Analyzer v4.0
-Temporal Fluidity & Coherence Measurement
+Brand Liquidity Analyzer v5.0
+Temporal Liquidity & Coherence Measurement
+
+v5.0 Changes (methodology alignment):
+- Renamed all terminology from "Fluidity" to "Liquidity" (Bauman, 2000)
+  TFI -> TLI, VFI -> VLI, BFI -> BLI
+- CMCS rewritten: centroid-to-centroid cosine similarity in CLIP's joint
+  latent space (holistic brand territory alignment per Kapferer's Brand
+  Identity Prism). Replaces paired-diagonal approach. Text and image
+  corpora are treated as independent collections per period.
+- Temporal Coherence now uses sample std (ddof=1), consistent with
+  Drift Volatility and Bessel's correction as documented in methodology.
+- Color Entropy: per-image pixel sampling (max 1000) applied before
+  period aggregation, matching methodology description.
+- Removed redundant character-level CLIP text truncation; relies on
+  clip.tokenize(truncate=True) for proper token-level handling.
+
+v4.1 Changes:
+- Drift volatility now uses sample standard deviation (ddof=1)
+- Added edge case handling for single transition periods
 
 v4 Changes:
-- TFI = Semantic Drift only (Topic Turnover is diagnostic)
-- VFI = Visual Drift only
-- BFI = 0.5*TFI + 0.5*VFI (CMCS is separate axis, not in BFI)
+- TLI = Semantic Drift only (Topic Turnover is diagnostic)
+- VLI = Visual Drift only
+- BLI = 0.5*TLI + 0.5*VLI (CMCS is separate axis, not in BLI)
 """
 
 import os
@@ -32,12 +50,12 @@ warnings.filterwarnings('ignore')
 class NormalizationParams:
     """
     Empirically-derived normalization parameters.
-    
+
     These bounds are calibrated for period-centroid comparisons:
     - Semantic drift: Period centroids have high similarity (0.75-0.95),
       so drift values (1-similarity) typically range 0.05-0.25
     - Visual drift: CLIP embeddings show similar patterns, 0.02-0.12
-    - CMCS: Cross-modal similarities typically 0.15-0.32
+    - CMCS: Cross-modal centroid-to-centroid similarities typically 0.15-0.32
     """
     cmcs_min: float = 0.15
     cmcs_max: float = 0.32
@@ -47,16 +65,22 @@ class NormalizationParams:
     visual_drift_max: float = 0.12
 
 
-class BrandFluidityAnalyzerV2:
+class BrandLiquidityAnalyzer:
     """
-    Brand Fluidity Analyzer v4.0
+    Brand Liquidity Analyzer v5.0
+
+    Operationalizes Bauman's (2000) liquid modernity theory for brand
+    identity measurement through computational text and image analysis.
 
     Core indices:
-    - TFI = Semantic Drift (normalized)
-    - VFI = Visual Drift (normalized)
-    - BFI = 0.5*TFI + 0.5*VFI
+    - TLI = Semantic Drift (normalized)   [Textual Liquidity Index]
+    - VLI = Visual Drift (normalized)     [Visual Liquidity Index]
+    - BLI = 0.5*TLI + 0.5*VLI            [Brand Liquidity Index]
 
-    CMCS is reported separately (not in BFI).
+    CMCS is reported on a separate axis (not in BLI).
+    Cross-Modal Coherence measures holistic alignment between textual
+    and visual brand expressions via centroid comparison in CLIP's
+    joint latent space (Radford et al., 2021).
     """
 
     def __init__(self, device: str = None, norm_params: NormalizationParams = None):
@@ -95,6 +119,11 @@ class BrandFluidityAnalyzerV2:
     # -------------------- Text Embeddings & Drift --------------------
 
     def embed_texts(self, texts: List[str]) -> np.ndarray:
+        """Encode texts using Sentence-BERT (all-MiniLM-L6-v2).
+        
+        Used for TLI semantic drift computation. Returns individual
+        text embeddings (not centroids).
+        """
         if not texts:
             return np.zeros((1, self.sbert_model.get_sentence_embedding_dimension()))
         return self.sbert_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
@@ -102,6 +131,12 @@ class BrandFluidityAnalyzerV2:
     def compute_semantic_drift(
         self, texts_by_period: Dict[str, List[str]]
     ) -> Tuple[float, float, Dict[str, float], Dict[str, np.ndarray]]:
+        """Compute Semantic Drift as average cosine distance between
+        consecutive period embedding centroids (Sentence-BERT).
+        
+        Methodology reference: TLI computation, Hamilton et al. (2016)
+        temporal embedding methodology.
+        """
         period_keys = sorted(texts_by_period.keys())
         period_embeddings: Dict[str, np.ndarray] = {}
 
@@ -134,6 +169,11 @@ class BrandFluidityAnalyzerV2:
     def compute_topic_turnover(
         self, texts_by_period: Dict[str, List[str]], num_topics: int = 5
     ) -> Tuple[float, Dict[str, float], Dict[str, List[str]]]:
+        """Compute Topic Turnover via period-specific LDA and Jaccard distance.
+        
+        Diagnostic metric — does not enter BLI.
+        Methodology reference: Blei et al. (2003), Wang & McCallum (2006).
+        """
         period_keys = sorted(texts_by_period.keys())
         topic_sets: Dict[str, List[str]] = {}
         period_turnovers: Dict[str, float] = {}
@@ -192,6 +232,11 @@ class BrandFluidityAnalyzerV2:
     # -------------------- Tone Diversity (Descriptive) --------------------
 
     def compute_tone_diversity(self, texts_by_period: Dict[str, List[str]]) -> Tuple[float, float]:
+        """Compute Tone Diversity as normalized Shannon entropy of VADER
+        sentiment score distribution across five equal-width bins.
+        
+        Descriptive metric — does not enter BLI.
+        """
         sentiments: List[float] = []
         for texts in texts_by_period.values():
             for text in texts:
@@ -216,6 +261,11 @@ class BrandFluidityAnalyzerV2:
     # -------------------- Image Embeddings & Drift --------------------
 
     def embed_images(self, image_paths: List[str]) -> np.ndarray:
+        """Encode images using CLIP ViT-B/32 with L2-normalization.
+        
+        Returns individual image embeddings (not centroids).
+        Used for VLI drift, Motif Diversity, and CMCS computation.
+        """
         if not image_paths:
             return np.zeros((1, 512))
 
@@ -241,6 +291,12 @@ class BrandFluidityAnalyzerV2:
     def compute_visual_drift(
         self, images_by_period: Dict[str, List[str]]
     ) -> Tuple[float, float, Dict[str, float], Dict[str, np.ndarray]]:
+        """Compute Visual Drift as average cosine distance between
+        consecutive period image embedding centroids (CLIP ViT-B/32).
+        
+        Methodology reference: VLI computation, Radford et al. (2021),
+        Dosovitskiy et al. (2020).
+        """
         period_keys = sorted(images_by_period.keys())
         period_centroids: Dict[str, np.ndarray] = {}
 
@@ -267,6 +323,15 @@ class BrandFluidityAnalyzerV2:
     def compute_color_entropy(
         self, images_by_period: Dict[str, List[str]], num_colors: int = 5
     ) -> Tuple[float, float, Dict[str, float]]:
+        """Compute Color Entropy via K-Means color quantization and
+        normalized Shannon entropy.
+        
+        FIX v5.0: Per-image pixel sampling (max 1000 pixels) applied
+        before period aggregation, preventing large images from
+        dominating and matching methodology description.
+        
+        Descriptive metric — does not enter BLI.
+        """
         all_colors: List[np.ndarray] = []
         period_color_entropies: Dict[str, float] = {}
 
@@ -278,6 +343,9 @@ class BrandFluidityAnalyzerV2:
                 try:
                     img = Image.open(path).convert("RGB")
                     arr = np.array(img).reshape(-1, 3)
+                    # Per-image pixel sampling (max 1000) as per methodology
+                    if len(arr) > 1000:
+                        arr = arr[np.random.choice(len(arr), 1000, replace=False)]
                     period_pixels.append(arr)
                 except Exception:
                     continue
@@ -299,7 +367,7 @@ class BrandFluidityAnalyzerV2:
             entropy = -np.sum(probs * np.log(probs))
             norm_entropy = float(entropy / np.log(num_colors))
             period_color_entropies[period] = norm_entropy
-            all_colors.append(pixels[np.random.choice(len(pixels), size=min(1000, len(pixels)), replace=False)])
+            all_colors.append(pixels)
 
         if not all_colors:
             return 0.0, 0.0, period_color_entropies
@@ -319,7 +387,11 @@ class BrandFluidityAnalyzerV2:
     def compute_motif_diversity(
         self, images_by_period: Dict[str, List[str]], num_clusters: int = 8
     ) -> Tuple[float, float, float, Dict[str, float]]:
-        """Returns (diversity, uniqueness, evenness, period_diversity)"""
+        """Compute Motif Diversity via K-Means clustering of CLIP embeddings.
+        
+        Returns (diversity, uniqueness, evenness, period_diversity).
+        Descriptive metric — does not enter BLI.
+        """
         all_paths: List[str] = []
         for paths in images_by_period.values():
             all_paths.extend(paths)
@@ -373,35 +445,58 @@ class BrandFluidityAnalyzerV2:
     def compute_cross_modal_coherence(
         self, texts_by_period: Dict[str, List[str]], images_by_period: Dict[str, List[str]]
     ) -> Tuple[float, float, float, Dict[str, float]]:
+        """Compute Cross-Modal Coherence Score via centroid-to-centroid
+        cosine similarity in CLIP's joint latent space.
+
+        FIX v5.0: Rewritten from paired-diagonal to centroid method.
+        Text and image corpora are treated as independent collections
+        (no pairing assumed). For each period:
+          1. Encode ALL texts with CLIP text encoder -> text centroid
+          2. Encode ALL images with CLIP image encoder -> image centroid
+          3. CMCS_period = cosine_similarity(text_centroid, image_centroid)
+
+        This operationalizes Kapferer's holistic brand identity coherence:
+        whether the brand's overall verbal territory occupies similar
+        regions in semantic space as its overall visual territory.
+
+        Methodology reference: Radford et al. (2021), Kapferer (2012).
+
+        Returns:
+            (normalized_cmcs, raw_cmcs, temporal_coherence, period_coherences)
+        """
         period_keys = sorted(texts_by_period.keys())
         period_coherences: Dict[str, float] = {}
-        all_sims: List[float] = []
+        valid_period_scores: List[float] = []
 
         for period in period_keys:
-            texts = texts_by_period[period]
+            texts = texts_by_period.get(period, [])
             image_paths = images_by_period.get(period, [])
+
             if not texts or not image_paths:
                 period_coherences[period] = 0.0
                 continue
 
-            n_pairs = min(len(texts), len(image_paths), 20)
-            texts_sample = texts[:n_pairs]
-            images_sample = image_paths[:n_pairs]
-
             try:
                 with torch.no_grad():
-                    # Truncate texts to avoid CLIP token limit
-                    texts_truncated = [t[:77] for t in texts_sample]
-                    text_tokens = clip.tokenize(texts_truncated, truncate=True).to(self.device)
+                    # --- Text centroid via CLIP text encoder ---
+                    # Encode ALL texts for this period (no sampling/pairing)
+                    text_tokens = clip.tokenize(texts, truncate=True).to(self.device)
                     text_features = self.clip_model.encode_text(text_tokens)
                     text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+                    text_centroid = text_features.mean(dim=0, keepdim=True)
+                    text_centroid = text_centroid / text_centroid.norm(dim=-1, keepdim=True)
 
+                    # --- Image centroid via CLIP image encoder ---
+                    # Encode ALL images for this period (no sampling/pairing)
                     image_tensors = []
-                    for p in images_sample:
+                    for p in image_paths:
                         if not os.path.exists(p):
                             continue
-                        img = Image.open(p).convert("RGB")
-                        image_tensors.append(self.clip_preprocess(img))
+                        try:
+                            img = Image.open(p).convert("RGB")
+                            image_tensors.append(self.clip_preprocess(img))
+                        except Exception:
+                            continue
 
                     if not image_tensors:
                         period_coherences[period] = 0.0
@@ -410,51 +505,87 @@ class BrandFluidityAnalyzerV2:
                     image_batch = torch.stack(image_tensors).to(self.device)
                     image_features = self.clip_model.encode_image(image_batch)
                     image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+                    image_centroid = image_features.mean(dim=0, keepdim=True)
+                    image_centroid = image_centroid / image_centroid.norm(dim=-1, keepdim=True)
 
-                n_valid = min(text_features.shape[0], image_features.shape[0])
-                sims = (text_features[:n_valid] @ image_features[:n_valid].T).diag().cpu().numpy()
-                period_mean = float(np.mean(sims))
-                period_coherences[period] = period_mean
-                all_sims.extend(sims.tolist())
+                # Cosine similarity between text and image centroids
+                period_cmcs = float((text_centroid @ image_centroid.T).item())
+                period_coherences[period] = period_cmcs
+                valid_period_scores.append(period_cmcs)
+
             except Exception as e:
                 print(f"  Warning: Coherence computation failed for {period}: {e}")
                 period_coherences[period] = 0.0
                 continue
 
-        if not all_sims:
+        if not valid_period_scores:
             return 0.0, 0.0, 0.0, period_coherences
 
-        raw_cmcs = float(np.mean(all_sims))
+        raw_cmcs = float(np.mean(valid_period_scores))
         norm_cmcs = self._normalize(raw_cmcs, self.norm_params.cmcs_min, self.norm_params.cmcs_max)
-        temporal_coherence = float(np.std(list(period_coherences.values()))) if len(period_coherences) > 1 else 0.0
+
+        # Temporal Coherence: sample std (ddof=1) of period CMCS scores
+        # FIX v5.0: uses ddof=1 consistent with Drift Volatility and
+        # methodology section on Bessel's correction
+        if len(valid_period_scores) > 2:
+            temporal_coherence = float(np.std(valid_period_scores, ddof=1))
+        else:
+            temporal_coherence = 0.0
 
         return norm_cmcs, raw_cmcs, temporal_coherence, period_coherences
 
-    # -------------------- Index Composition (v4) --------------------
+    # -------------------- Index Composition --------------------
 
-    def compute_tfi(self, semantic_drift: float) -> float:
-        """v4: TFI = Semantic Drift (normalized)"""
+    def compute_tli(self, semantic_drift: float) -> float:
+        """TLI = Semantic Drift (normalized). Textual Liquidity Index."""
         return float(semantic_drift)
 
-    def compute_vfi(self, visual_drift: float) -> float:
-        """v4: VFI = Visual Drift (normalized)"""
+    def compute_vli(self, visual_drift: float) -> float:
+        """VLI = Visual Drift (normalized). Visual Liquidity Index."""
         return float(visual_drift)
 
-    def compute_bfi(self, tfi: float, vfi: float, weights: Tuple[float, float] = (0.5, 0.5)) -> float:
-        """v4: BFI = alpha*TFI + beta*VFI (CMCS not included)"""
-        return float(weights[0] * tfi + weights[1] * vfi)
+    def compute_bli(self, tli: float, vli: float, weights: Tuple[float, float] = (0.5, 0.5)) -> float:
+        """BLI = alpha*TLI + beta*VLI. Brand Liquidity Index.
+        
+        CMCS is deliberately excluded (orthogonal dimension).
+        Default weights: alpha = beta = 0.5 (equal weighting).
+        """
+        return float(weights[0] * tli + weights[1] * vli)
 
     # -------------------- Second-Order Metrics --------------------
 
     @staticmethod
     def compute_drift_volatility(similarities: Dict[str, float]) -> float:
+        """
+        Compute drift volatility as sample standard deviation of period-to-period drift values.
+
+        Uses Bessel's correction (ddof=1) for unbiased estimation of population variance
+        from sample data. This aligns with standard statistical practice and financial
+        volatility conventions (Engle, 1982; Andersen et al., 2006).
+
+        Args:
+            similarities: Dict mapping period transitions (e.g., "2015->2017") to similarity scores
+
+        Returns:
+            Sample standard deviation of drift values (1 - similarity).
+            Returns 0.0 if fewer than 2 transitions (cannot compute sample std with k=1).
+
+        Note:
+            With n time periods, there are k = n-1 transitions. Sample standard deviation
+            requires k >= 2 observations, hence minimum 3 time periods for meaningful volatility.
+        """
         if not similarities:
             return 0.0
         drifts = [1.0 - s for s in similarities.values()]
-        return float(np.std(drifts))
+        # Need at least 2 values to compute sample standard deviation
+        if len(drifts) < 2:
+            return 0.0
+        return float(np.std(drifts, ddof=1))
 
     @staticmethod
     def compute_coherence_trajectory(period_coherences: Dict[str, float]) -> float:
+        """Compute Coherence Trajectory as OLS slope of period CMCS scores
+        against time. Positive slope = improving integration."""
         if len(period_coherences) < 2:
             return 0.0
         periods = sorted(period_coherences.keys())
@@ -465,12 +596,20 @@ class BrandFluidityAnalyzerV2:
 
     @staticmethod
     def compute_drift_ratio(semantic_drift_raw: float, visual_drift_raw: float) -> float:
+        """Drift Ratio = raw SD / raw VD. Uses raw (unnormalized) values
+        to preserve natural scaling relationship."""
         if visual_drift_raw == 0:
             return 10.0 if semantic_drift_raw > 0 else 0.0
         return float(min(10.0, semantic_drift_raw / visual_drift_raw))
 
     @staticmethod
     def compute_directional_consistency(period_embeddings: Dict[str, np.ndarray]) -> float:
+        """Compute Directional Consistency as mean cosine similarity between
+        consecutive drift vectors.
+        
+        Adapted from directional persistence in movement ecology and
+        random-walk theory (Codling et al., 2008).
+        """
         periods = sorted(period_embeddings.keys())
         if len(periods) < 3:
             return 0.0
@@ -491,6 +630,11 @@ class BrandFluidityAnalyzerV2:
 
     @staticmethod
     def compute_tsdi(topic_turnover: float, semantic_drift_raw: float) -> float:
+        """Topic-Semantic Decoupling Index = Topic Turnover / raw Semantic Drift.
+        
+        Distinguishes cultural agility (high TT, low SD) from identity
+        fragmentation (high TT, high SD). Hamilton et al. (2016) inspired.
+        """
         if semantic_drift_raw == 0:
             return 10.0 if topic_turnover > 0 else 0.0
         return float(min(10.0, topic_turnover / semantic_drift_raw))
@@ -504,13 +648,13 @@ class BrandFluidityAnalyzerV2:
         brand_name: str = "Unknown",
     ) -> Dict[str, Any]:
         print("\n" + "=" * 60)
-        print("Brand Fluidity Analyzer v4.0")
+        print("Brand Liquidity Analyzer v5.0")
         print(f"Analyzing: {brand_name}")
         print("=" * 60)
 
         results: Dict[str, Any] = {
             "brand_name": brand_name,
-            "analyzer_version": "4.0",
+            "analyzer_version": "5.0",
             "periods_analyzed": sorted(set(texts_by_period.keys()) | set(images_by_period.keys()))
         }
 
@@ -521,7 +665,7 @@ class BrandFluidityAnalyzerV2:
         topic_turnover, topic_turnovers, topic_sets = self.compute_topic_turnover(texts_by_period)
         tone_diversity, tone_diversity_raw = self.compute_tone_diversity(texts_by_period)
 
-        tfi = self.compute_tfi(semantic_drift)
+        tli = self.compute_tli(semantic_drift)
 
         results["textual"] = {
             "semantic_drift": semantic_drift,
@@ -529,7 +673,7 @@ class BrandFluidityAnalyzerV2:
             "topic_turnover": topic_turnover,
             "tone_diversity": tone_diversity,
             "tone_diversity_raw": tone_diversity_raw,
-            "tfi": tfi,
+            "tli": tli,
             "period_similarities": text_similarities,
             "period_topic_turnovers": topic_turnovers,
         }
@@ -537,7 +681,7 @@ class BrandFluidityAnalyzerV2:
         print(f"   Semantic Drift: {semantic_drift:.3f} (raw: {semantic_drift_raw:.3f})")
         print(f"   Topic Turnover: {topic_turnover:.3f} [diagnostic]")
         print(f"   Tone Diversity: {tone_diversity:.3f}")
-        print(f"   TFI: {tfi:.3f}")
+        print(f"   TLI: {tli:.3f}")
 
         # ========== VISUAL METRICS ==========
         print("\n[2/6] Computing visual metrics...")
@@ -548,12 +692,12 @@ class BrandFluidityAnalyzerV2:
         motif_diversity, motif_uniqueness, motif_evenness, period_motif_diversity = \
             self.compute_motif_diversity(images_by_period)
 
-        vfi = self.compute_vfi(visual_drift)
+        vli = self.compute_vli(visual_drift)
 
         results["visual"] = {
             "visual_drift": visual_drift,
             "visual_drift_raw": visual_drift_raw,
-            "vfi": vfi,
+            "vli": vli,
             "color_entropy": color_entropy,
             "color_entropy_raw": color_entropy_raw,
             "motif_diversity": motif_diversity,
@@ -563,7 +707,7 @@ class BrandFluidityAnalyzerV2:
         }
 
         print(f"   Visual Drift: {visual_drift:.3f} (raw: {visual_drift_raw:.3f})")
-        print(f"   VFI: {vfi:.3f}")
+        print(f"   VLI: {vli:.3f}")
         print(f"   Color Entropy: {color_entropy:.3f}")
         print(f"   Motif Diversity: {motif_diversity:.3f}")
 
@@ -582,34 +726,34 @@ class BrandFluidityAnalyzerV2:
         print(f"   CMCS: {cmcs:.3f} (raw: {cmcs_raw:.3f})")
         print(f"   Temporal Coherence: {temporal_coherence:.4f}")
 
-        # ========== BRAND FLUIDITY INDEX ==========
-        print("\n[4/6] Computing Brand Fluidity Index...")
-        bfi = self.compute_bfi(tfi, vfi)
+        # ========== BRAND LIQUIDITY INDEX ==========
+        print("\n[4/6] Computing Brand Liquidity Index...")
+        bli = self.compute_bli(tli, vli)
 
-        if bfi < 0.30:
+        if bli < 0.30:
             category = "Solid"
             description = "Strong continuity across both dimensions"
-        elif bfi < 0.60:
+        elif bli < 0.60:
             category = "Semi-solid"
             description = "Controlled evolution with stable core identity"
-        elif bfi < 0.80:
-            category = "Semi-fluid"
-            description = "Balanced adaptation - stable enough for recognition, fluid for relevance"
+        elif bli < 0.80:
+            category = "Semi-liquid"
+            description = "Balanced adaptation - stable enough for recognition, liquid for relevance"
         else:
-            category = "Fluid"
+            category = "Liquid"
             description = "Highly adaptive, context-responsive, self-reconfiguring identity"
 
-        results["bfi"] = {
-            "score": bfi,
+        results["bli"] = {
+            "score": bli,
             "category": category,
             "description": description,
             "components": {
-                "tfi_contribution": 0.5 * tfi,
-                "vfi_contribution": 0.5 * vfi,
+                "tli_contribution": 0.5 * tli,
+                "vli_contribution": 0.5 * vli,
             },
         }
 
-        print(f"   BFI: {bfi:.3f} ({category})")
+        print(f"   BLI: {bli:.3f} ({category})")
 
         # ========== SECOND-ORDER METRICS ==========
         print("\n[5/6] Computing evolution patterns...")
@@ -656,7 +800,7 @@ class BrandFluidityAnalyzerV2:
 
         print("\n" + "=" * 60)
         print(f"Analysis Complete: {brand_name}")
-        print(f"BFI: {bfi:.3f} - {category}")
+        print(f"BLI: {bli:.3f} - {category}")
         print("=" * 60 + "\n")
 
         return results
