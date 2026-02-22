@@ -14,10 +14,10 @@ import numpy as np
 from dotenv import load_dotenv
 load_dotenv()
 
-from brand_fluidity_analyzer_v2 import BrandFluidityAnalyzerV2
+from brand_liquidity_analyzer import BrandLiquidityAnalyzer
 from llm_analyzer import LLMAnalyzer
 
-app = FastAPI(title="Brand Fluidity Analyzer API", version="2.0")
+app = FastAPI(title="Brand Liquidity Analyzer API", version="5.0")
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -34,7 +34,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 (UPLOAD_DIR / "texts").mkdir(exist_ok=True)
 (UPLOAD_DIR / "images").mkdir(exist_ok=True)
 
-analyzer = BrandFluidityAnalyzerV2()
+analyzer = BrandLiquidityAnalyzer()
 llm_analyzer = LLMAnalyzer()
 
 
@@ -239,10 +239,10 @@ async def analyze_brand(
     include_llm_insights: bool = Form(True)
 ):
     """
-    Analyze brand fluidity metrics for uploaded materials.
+    Analyze brand liquidity metrics for uploaded materials.
     
-    Returns comprehensive fluidity analysis including:
-    - Core metrics: TFI, VFI, CMCS, BFI
+    Returns comprehensive liquidity analysis including:
+    - Core metrics: TLI, VLI, CMCS, BLI
     - Second-order metrics: Drift volatility, coherence trajectory, drift ratio, etc.
     - Optional LLM-generated strategic insights
     """
@@ -277,14 +277,14 @@ async def analyze_brand(
                 detail="No valid text or image files found. Ensure files have year in filename (e.g., 'content_2019.txt')."
             )
         
-        # Run analysis with v2 analyzer
-        print("\nStarting Brand Fluidity Analysis v2.0...")
+        # Run analysis with v5 analyzer
+        print("\nStarting Brand Liquidity Analysis v5.0...")
         results = analyzer.analyze_brand(
             texts_by_period=texts_by_period,
             images_by_period=images_by_period,
             brand_name=brand_name
         )
-        print("Brand Fluidity Analysis completed successfully!")
+        print("Brand Liquidity Analysis completed successfully!")
         
         # Add LLM insights if requested
         if include_llm_insights:
@@ -362,10 +362,10 @@ async def delete_brand(brand_name: str):
 @app.get("/")
 async def root():
     return {
-        "message": "Brand Fluidity Analyzer API",
-        "version": "2.0",
+        "message": "Brand Liquidity Analyzer API",
+        "version": "5.0",
         "features": [
-            "Core metrics: TFI, VFI, CMCS, BFI",
+            "Core metrics: TLI, VLI, CMCS, BLI",
             "Second-order metrics: Drift volatility, coherence trajectory, drift ratio",
             "Directional consistency and topic-semantic decoupling",
             "LLM-powered strategic insights"
