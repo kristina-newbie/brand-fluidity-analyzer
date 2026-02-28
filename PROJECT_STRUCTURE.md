@@ -5,6 +5,7 @@ brand-fluidity-analyzer/
 │
 ├── README.md                          # Main documentation
 ├── DEPLOYMENT.md                      # Deployment guide
+├── setup.sh                           # Setup script (run from root)
 ├── docker-compose.yml                 # Docker Compose configuration
 │
 ├── backend/                           # Python backend
@@ -14,7 +15,7 @@ brand-fluidity-analyzer/
 │   ├── requirements.txt              # Python dependencies
 │   ├── Dockerfile                    # Docker configuration
 │   ├── .env.example                  # Environment variables template
-│   ├── setup.sh                      # Automated setup script
+│   ├── setup.sh                      # Forwards to ../setup.sh
 │   ├── test_setup.py                 # Setup verification script
 │   ├── generate_sample_data.py       # Test data generator
 │   │
@@ -76,11 +77,7 @@ brand-fluidity-analyzer/
 
 #### Utility Scripts
 
-- **setup.sh** (Bash)
-  - Automated backend setup
-  - Dependency installation
-  - NLTK data download
-  - Directory creation
+- **setup.sh** (Bash, in backend): Forwards to **../setup.sh**. The main setup script lives at project root so you run it without changing directories; it creates `.venv`, installs from `backend/requirements-dev.txt`, and sets up NLTK, `.env`, and upload dirs.
 
 - **test_setup.py** (200 lines)
   - Verify installation

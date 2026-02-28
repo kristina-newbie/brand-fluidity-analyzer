@@ -68,11 +68,9 @@ brand-fluidity-analyzer/
 
 1. **Backend** (5 min):
    ```bash
-   cd backend
-   chmod +x setup.sh
-   ./setup.sh
-   # Edit .env and add ANTHROPIC_API_KEY
-   python main.py
+   chmod +x setup.sh && ./setup.sh   # from project root
+   # Edit backend/.env and add ANTHROPIC_API_KEY
+   cd backend && python main.py
    ```
 
 2. **Frontend** (5 min):

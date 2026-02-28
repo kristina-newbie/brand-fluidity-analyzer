@@ -2,6 +2,8 @@
 
 Use **one virtual environment at the project root** so you don’t end up with multiple venvs (e.g. in both root and `backend/`).
 
+**Quick path:** From project root run `./setup.sh` — it creates `.venv`, installs deps, sets up NLTK and `backend/.env`, and creates upload dirs. No directory changes required.
+
 ## 1. Create and use the venv (project root)
 
 From the **project root** (`brand-fluidity-analyzer/`):
