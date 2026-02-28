@@ -25,14 +25,14 @@ class LLMAnalyzer:
             self.client = None
         else:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-    
+
     async def generate_insights(self, analysis_results: Dict) -> Dict:
         """
         Generate strategic insights from brand liquidity analysis.
-        
+
         Args:
             analysis_results: Complete analysis results from BrandLiquidityAnalyzer
-            
+
         Returns:
             Dict containing insights, recommendations, and strategic analysis
         """
@@ -41,11 +41,11 @@ class LLMAnalyzer:
                 "error": "Claude API key not configured",
                 "insights": "LLM insights unavailable. Please set ANTHROPIC_API_KEY environment variable."
             }
-        
+
         try:
             # Prepare the analysis data for Claude
             prompt = self._create_analysis_prompt(analysis_results)
-            
+
             # Call Claude API
             message = self.client.messages.create(
                 model="claude-sonnet-4-5-20250929",
@@ -57,23 +57,23 @@ class LLMAnalyzer:
                     }
                 ]
             )
-            
+
             # Parse the response
             insights_text = message.content[0].text
-            
+
             # Structure the insights
             return {
                 "insights": insights_text,
                 "model": "claude-sonnet-4-5",
                 "timestamp": analysis_results.get("timestamp")
             }
-            
+
         except Exception as e:
             return {
                 "error": str(e),
                 "insights": f"Error generating insights: {str(e)}"
             }
-    
+
     def _safe_float(self, value, default=0.0) -> float:
         """Safely convert value to float."""
         if value is None:
@@ -82,12 +82,12 @@ class LLMAnalyzer:
             return float(value)
         except (TypeError, ValueError):
             return default
-    
+
     def _create_analysis_prompt(self, results: Dict) -> str:
         """Create a detailed prompt for Claude to analyze the metrics."""
-        
+
         brand_name = results.get("brand_name", "Unknown Brand")
-        
+
         # Extract nested results (v5 structure)
         textual = results.get("textual", {})
         visual = results.get("visual", {})
@@ -96,27 +96,27 @@ class LLMAnalyzer:
         second_order = results.get("second_order", {})
         summary = results.get("summary", {})
         periods = results.get("periods_analyzed", [])
-        
+
         # Core metrics - safely convert to float
         tli = self._safe_float(textual.get("tli"))
         semantic_drift = self._safe_float(textual.get("semantic_drift"))
         tone_diversity = self._safe_float(textual.get("tone_diversity"))
         topic_turnover = self._safe_float(textual.get("topic_turnover"))
-        
+
         vli = self._safe_float(visual.get("vli"))
         visual_drift = self._safe_float(visual.get("visual_drift"))
         color_entropy = self._safe_float(visual.get("color_entropy"))
         motif_diversity = self._safe_float(visual.get("motif_diversity"))
         motif_uniqueness = self._safe_float(visual.get("motif_uniqueness"))
         motif_evenness = self._safe_float(visual.get("motif_evenness"))
-        
+
         cmcs = self._safe_float(coherence.get("cmcs"))
         temporal_coherence = self._safe_float(coherence.get("temporal_coherence"))
-        
+
         bli_score = self._safe_float(bli.get("score"))
         bli_category = bli.get("category", "Unknown")
         bli_description = bli.get("description", "N/A")
-        
+
         # Second-order metrics
         semantic_drift_volatility = self._safe_float(second_order.get("semantic_drift_volatility"))
         visual_drift_volatility = self._safe_float(second_order.get("visual_drift_volatility"))
@@ -125,12 +125,12 @@ class LLMAnalyzer:
         directional_consistency_text = self._safe_float(second_order.get("directional_consistency_text"))
         directional_consistency_visual = self._safe_float(second_order.get("directional_consistency_visual"))
         topic_semantic_decoupling = self._safe_float(second_order.get("topic_semantic_decoupling"))
-        
+
         # Period similarities for evolution analysis (these are DICTS, not lists)
         text_period_sims = textual.get("period_similarities", {})
         visual_period_sims = visual.get("period_similarities", {})
         period_coherences = coherence.get("period_coherences", {})
-        
+
         # Format period-by-period evolution from dict format {"2015->2017": 0.85, ...}
         text_evolution = ""
         if isinstance(text_period_sims, dict) and text_period_sims:
@@ -138,14 +138,14 @@ class LLMAnalyzer:
             for transition, sim in sorted(text_period_sims.items()):
                 sim_val = self._safe_float(sim)
                 text_evolution += f"   - {transition}: {sim_val:.3f} similarity (drift: {1-sim_val:.3f})\n"
-        
+
         visual_evolution = ""
         if isinstance(visual_period_sims, dict) and visual_period_sims:
             visual_evolution = "\n   Period-by-period visual stability:\n"
             for transition, sim in sorted(visual_period_sims.items()):
                 sim_val = self._safe_float(sim)
                 visual_evolution += f"   - {transition}: {sim_val:.3f} similarity (drift: {1-sim_val:.3f})\n"
-        
+
         coherence_evolution = ""
         if isinstance(period_coherences, dict) and period_coherences:
             coherence_evolution = "\n   Period-by-period cross-modal coherence:\n"

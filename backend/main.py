@@ -52,76 +52,76 @@ def extract_year_from_filename(filename: str) -> Optional[str]:
 def load_texts_by_period(text_dir: Path) -> Dict[str, List[str]]:
     """
     Load text files and organize by period (year).
-    
+
     Args:
         text_dir: Directory containing text files
-        
+
     Returns:
         Dict mapping year strings to lists of text content
     """
     texts_by_period = defaultdict(list)
-    
+
     if not text_dir.exists():
         return dict(texts_by_period)
-    
+
     for text_file in text_dir.glob("*"):
         if text_file.is_file() and text_file.suffix.lower() in ['.txt', '.md', '.doc', '.docx']:
             try:
                 # Try to read text content
                 content = text_file.read_text(encoding='utf-8', errors='ignore')
-                
+
                 # Extract year from filename
                 year = extract_year_from_filename(text_file.name)
-                
+
                 if year:
                     texts_by_period[year].append(content)
                 else:
                     # Default to "unknown" period if no year found
                     texts_by_period["unknown"].append(content)
-                    
+
             except Exception as e:
                 print(f"Error reading {text_file}: {e}")
                 continue
-    
+
     # Remove "unknown" period if we have dated content
     if "unknown" in texts_by_period and len(texts_by_period) > 1:
         del texts_by_period["unknown"]
-    
+
     return dict(texts_by_period)
 
 
 def load_images_by_period(image_dir: Path) -> Dict[str, List[str]]:
     """
     Load image paths and organize by period (year).
-    
+
     Args:
         image_dir: Directory containing image files
-        
+
     Returns:
         Dict mapping year strings to lists of image paths
     """
     images_by_period = defaultdict(list)
-    
+
     if not image_dir.exists():
         return dict(images_by_period)
-    
+
     valid_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
-    
+
     for image_file in image_dir.glob("*"):
         if image_file.is_file() and image_file.suffix.lower() in valid_extensions:
             # Extract year from filename
             year = extract_year_from_filename(image_file.name)
-            
+
             if year:
                 images_by_period[year].append(str(image_file))
             else:
                 # Default to "unknown" period if no year found
                 images_by_period["unknown"].append(str(image_file))
-    
+
     # Remove "unknown" period if we have dated content
     if "unknown" in images_by_period and len(images_by_period) > 1:
         del images_by_period["unknown"]
-    
+
     return dict(images_by_period)
 
 
@@ -129,10 +129,10 @@ def convert_numpy_types(obj):
     """Convert numpy types to Python native types for JSON serialization."""
     if isinstance(obj, dict):
         return {
-            (int(key) if isinstance(key, np.integer) else 
-             float(key) if isinstance(key, np.floating) else 
-             str(key) if not isinstance(key, (str, int, float, bool, type(None))) else key): 
-            convert_numpy_types(value) 
+            (int(key) if isinstance(key, np.integer) else
+             float(key) if isinstance(key, np.floating) else
+             str(key) if not isinstance(key, (str, int, float, bool, type(None))) else key):
+            convert_numpy_types(value)
             for key, value in obj.items()
         }
     elif isinstance(obj, list):
@@ -160,14 +160,14 @@ async def upload_files(
 ):
     """
     Upload brand materials (texts and images) for analysis.
-    
+
     Files should include year in filename (e.g., 'brand_copy_2019.txt', 'campaign_2021.jpg')
     for automatic period detection. Alternatively, provide years as JSON mapping.
     """
     try:
         # Parse year mapping if provided
         year_mapping = json.loads(years) if years else {}
-        
+
         # Create brand directory
         brand_dir = UPLOAD_DIR / brand_name.replace(" ", "_")
         brand_dir.mkdir(exist_ok=True)
@@ -175,7 +175,7 @@ async def upload_files(
         image_dir = brand_dir / "images"
         text_dir.mkdir(exist_ok=True)
         image_dir.mkdir(exist_ok=True)
-        
+
         # Save text files
         text_files = []
         for text_file in texts:
@@ -186,18 +186,18 @@ async def upload_files(
                 base, ext = os.path.splitext(filename)
                 if not extract_year_from_filename(filename):
                     filename = f"{base}_{year}{ext}"
-            
+
             file_path = text_dir / filename
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(text_file.file, f)
-            
+
             detected_year = extract_year_from_filename(filename)
             text_files.append({
                 "filename": filename,
                 "path": str(file_path),
                 "year": detected_year
             })
-        
+
         # Save image files
         image_files = []
         for image_file in images:
@@ -208,18 +208,18 @@ async def upload_files(
                 base, ext = os.path.splitext(filename)
                 if not extract_year_from_filename(filename):
                     filename = f"{base}_{year}{ext}"
-            
+
             file_path = image_dir / filename
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(image_file.file, f)
-            
+
             detected_year = extract_year_from_filename(filename)
             image_files.append({
                 "filename": filename,
                 "path": str(file_path),
                 "year": detected_year
             })
-        
+
         return JSONResponse({
             "status": "success",
             "brand_name": brand_name,
@@ -228,7 +228,7 @@ async def upload_files(
             "text_files": text_files,
             "image_files": image_files
         })
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -240,7 +240,7 @@ async def analyze_brand(
 ):
     """
     Analyze brand liquidity metrics for uploaded materials.
-    
+
     Returns comprehensive liquidity analysis including:
     - Core metrics: TLI, VLI, CMCS, BLI
     - Second-order metrics: Drift volatility, coherence trajectory, drift ratio, etc.
@@ -251,32 +251,32 @@ async def analyze_brand(
         print(f"Starting analysis for: {brand_name}")
         print(f"Include LLM insights: {include_llm_insights}")
         print("="*70)
-        
+
         brand_dir = UPLOAD_DIR / brand_name.replace(" ", "_")
         if not brand_dir.exists():
             raise HTTPException(status_code=404, detail="Brand not found. Please upload files first.")
-        
+
         text_dir = brand_dir / "texts"
         image_dir = brand_dir / "images"
-        
+
         # Load and organize data by period
         print("\nLoading and organizing data by period...")
         texts_by_period = load_texts_by_period(text_dir)
         images_by_period = load_images_by_period(image_dir)
-        
+
         # Report what was found
         text_count = sum(len(texts) for texts in texts_by_period.values())
         image_count = sum(len(imgs) for imgs in images_by_period.values())
-        
+
         print(f"Found {text_count} texts across {len(texts_by_period)} periods: {sorted(texts_by_period.keys())}")
         print(f"Found {image_count} images across {len(images_by_period)} periods: {sorted(images_by_period.keys())}")
-        
+
         if text_count == 0 and image_count == 0:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail="No valid text or image files found. Ensure files have year in filename (e.g., 'content_2019.txt')."
             )
-        
+
         # Run analysis with v5 analyzer
         print("\nStarting Brand Liquidity Analysis v5.0...")
         results = analyzer.analyze_brand(
@@ -285,25 +285,25 @@ async def analyze_brand(
             brand_name=brand_name
         )
         print("Brand Liquidity Analysis completed successfully!")
-        
+
         # Add LLM insights if requested
         if include_llm_insights:
             print("\nGenerating LLM insights...")
             llm_insights = await llm_analyzer.generate_insights(results)
             results["llm_insights"] = llm_insights
             print("LLM insights generated successfully!")
-        
+
         print("="*70)
         print("Analysis completed successfully!")
         print("="*70)
-        
+
         # Convert numpy types for JSON serialization
         print("Converting numpy types to Python native types...")
         results = convert_numpy_types(results)
         print("Conversion completed!")
-        
+
         return JSONResponse(results)
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -326,15 +326,15 @@ async def list_brands():
         if brand_dir.is_dir():
             text_dir = brand_dir / "texts"
             image_dir = brand_dir / "images"
-            
+
             texts_by_period = load_texts_by_period(text_dir)
             images_by_period = load_images_by_period(image_dir)
-            
+
             text_count = sum(len(texts) for texts in texts_by_period.values())
             image_count = sum(len(imgs) for imgs in images_by_period.values())
-            
+
             all_periods = sorted(set(texts_by_period.keys()) | set(images_by_period.keys()))
-            
+
             brands.append({
                 "name": brand_dir.name.replace("_", " "),
                 "text_count": text_count,

@@ -126,7 +126,7 @@ class BrandLiquidityAnalyzer:
 
     def embed_texts(self, texts: List[str]) -> np.ndarray:
         """Encode texts using Sentence-BERT (all-MiniLM-L6-v2).
-        
+
         Used for TLI semantic drift computation. Returns individual
         text embeddings (not centroids).
         """
@@ -139,7 +139,7 @@ class BrandLiquidityAnalyzer:
     ) -> Tuple[float, float, Dict[str, float], Dict[str, np.ndarray]]:
         """Compute Semantic Drift as average cosine distance between
         consecutive period embedding centroids (Sentence-BERT).
-        
+
         Methodology reference: TLI computation, Hamilton et al. (2016)
         temporal embedding methodology.
         """
@@ -176,7 +176,7 @@ class BrandLiquidityAnalyzer:
         self, texts_by_period: Dict[str, List[str]], num_topics: int = 5
     ) -> Tuple[float, Dict[str, float], Dict[str, List[str]]]:
         """Compute Topic Turnover via period-specific LDA and Jaccard distance.
-        
+
         Diagnostic metric — does not enter BLI.
         Methodology reference: Blei et al. (2003), Wang & McCallum (2006).
         """
@@ -240,7 +240,7 @@ class BrandLiquidityAnalyzer:
     def compute_tone_diversity(self, texts_by_period: Dict[str, List[str]]) -> Tuple[float, float]:
         """Compute Tone Diversity as normalized Shannon entropy of VADER
         sentiment score distribution across five equal-width bins.
-        
+
         Descriptive metric — does not enter BLI.
         """
         sentiments: List[float] = []
@@ -268,7 +268,7 @@ class BrandLiquidityAnalyzer:
 
     def embed_images(self, image_paths: List[str]) -> np.ndarray:
         """Encode images using CLIP ViT-B/32 with L2-normalization.
-        
+
         Returns individual image embeddings (not centroids).
         Used for VLI drift, Motif Diversity, and CMCS computation.
         """
@@ -299,7 +299,7 @@ class BrandLiquidityAnalyzer:
     ) -> Tuple[float, float, Dict[str, float], Dict[str, np.ndarray]]:
         """Compute Visual Drift as average cosine distance between
         consecutive period image embedding centroids (CLIP ViT-B/32).
-        
+
         Methodology reference: VLI computation, Radford et al. (2021),
         Dosovitskiy et al. (2020).
         """
@@ -331,11 +331,11 @@ class BrandLiquidityAnalyzer:
     ) -> Tuple[float, float, Dict[str, float]]:
         """Compute Color Entropy via K-Means color quantization and
         normalized Shannon entropy.
-        
+
         FIX v5.0: Per-image pixel sampling (max 1000 pixels) applied
         before period aggregation, preventing large images from
         dominating and matching methodology description.
-        
+
         Descriptive metric — does not enter BLI.
         """
         all_colors: List[np.ndarray] = []
@@ -394,7 +394,7 @@ class BrandLiquidityAnalyzer:
         self, images_by_period: Dict[str, List[str]], num_clusters: int = 8
     ) -> Tuple[float, float, float, Dict[str, float]]:
         """Compute Motif Diversity via K-Means clustering of CLIP embeddings.
-        
+
         Returns (diversity, uniqueness, evenness, period_diversity).
         Descriptive metric — does not enter BLI.
         """
@@ -552,7 +552,7 @@ class BrandLiquidityAnalyzer:
 
     def compute_bli(self, tli: float, vli: float, weights: Tuple[float, float] = (0.5, 0.5)) -> float:
         """BLI = alpha*TLI + beta*VLI. Brand Liquidity Index.
-        
+
         CMCS is deliberately excluded (orthogonal dimension).
         Default weights: alpha = beta = 0.5 (equal weighting).
         """
@@ -612,7 +612,7 @@ class BrandLiquidityAnalyzer:
     def compute_directional_consistency(period_embeddings: Dict[str, np.ndarray]) -> float:
         """Compute Directional Consistency as mean cosine similarity between
         consecutive drift vectors.
-        
+
         Adapted from directional persistence in movement ecology and
         random-walk theory (Codling et al., 2008).
         """
@@ -637,7 +637,7 @@ class BrandLiquidityAnalyzer:
     @staticmethod
     def compute_tsdi(topic_turnover: float, semantic_drift_raw: float) -> float:
         """Topic-Semantic Decoupling Index = Topic Turnover / raw Semantic Drift.
-        
+
         Distinguishes cultural agility (high TT, low SD) from identity
         fragmentation (high TT, high SD). Hamilton et al. (2016) inspired.
         """
