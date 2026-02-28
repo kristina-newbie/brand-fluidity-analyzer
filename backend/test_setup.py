@@ -21,7 +21,7 @@ def test_imports():
         'anthropic': 'Anthropic',
         'scipy': 'SciPy'
     }
-    
+
     failed = []
     for package, name in packages.items():
         try:
@@ -30,7 +30,7 @@ def test_imports():
         except ImportError as e:
             print(f"  ✗ {name} - {e}")
             failed.append(name)
-    
+
     return len(failed) == 0, failed
 
 def test_nltk_data():
@@ -39,7 +39,7 @@ def test_nltk_data():
     try:
         from nltk.sentiment import SentimentIntensityAnalyzer
         from nltk.tokenize import sent_tokenize
-        
+
         sia = SentimentIntensityAnalyzer()
         tokens = sent_tokenize("This is a test sentence. This is another one.")
         print(f"  ✓ NLTK data available")
@@ -52,7 +52,7 @@ def test_nltk_data():
 def test_models():
     """Test if models can be loaded."""
     print("\nTesting model loading...")
-    
+
     # Test CLIP
     try:
         import clip
@@ -63,7 +63,7 @@ def test_models():
     except Exception as e:
         print(f"  ✗ CLIP model failed - {e}")
         return False
-    
+
     # Test Sentence Transformers
     try:
         from sentence_transformers import SentenceTransformer
@@ -73,7 +73,7 @@ def test_models():
     except Exception as e:
         print(f"  ✗ Sentence Transformer failed - {e}")
         return False
-    
+
     return True
 
 def test_analyzer():
@@ -93,10 +93,10 @@ def test_api_key():
     print("\nChecking Anthropic API key...")
     import os
     from dotenv import load_dotenv
-    
+
     load_dotenv()
     api_key = os.getenv("ANTHROPIC_API_KEY")
-    
+
     if api_key and api_key != "your_anthropic_api_key_here":
         print("  ✓ ANTHROPIC_API_KEY is configured")
         return True
@@ -111,31 +111,31 @@ def main():
     print("Brand Fluidity Analyzer v2.0 - Setup Verification")
     print("=" * 60)
     print()
-    
+
     all_passed = True
-    
+
     # Test imports
     imports_ok, failed = test_imports()
     if not imports_ok:
         print(f"\n⚠ Missing packages: {', '.join(failed)}")
         print("Install with: pip install -r requirements.txt --break-system-packages")
         all_passed = False
-    
+
     # Test NLTK
     if not test_nltk_data():
         all_passed = False
-    
+
     # Test models
     if not test_models():
         all_passed = False
-    
+
     # Test analyzer
     if not test_analyzer():
         all_passed = False
-    
+
     # Test API key
     api_key_ok = test_api_key()
-    
+
     print("\n" + "=" * 60)
     if all_passed:
         print("✅ All core components working!")

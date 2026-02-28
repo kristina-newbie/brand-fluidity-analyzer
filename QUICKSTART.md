@@ -6,25 +6,21 @@ Get your Brand Fluidity Analyzer running in 10 minutes!
 
 ### Step 1: Backend Setup (5 minutes)
 
-```bash
-# Navigate to backend
-cd backend
+**Supported Python:** 3.10, 3.11, or 3.12 (3.14 is not yet supported by some dependencies, e.g. gensim).
 
-# Run setup script
+```bash
+# From project root
 chmod +x setup.sh
 ./setup.sh
 
-# OR manual setup:
-pip install -r requirements.txt --break-system-packages
-python -c "import nltk; nltk.download('vader_lexicon'); nltk.download('punkt')"
+# Configure API key (edit backend/.env)
+# Add your ANTHROPIC_API_KEY
 
-# Configure API key
-cp .env.example .env
-nano .env  # Add your ANTHROPIC_API_KEY
-
-# Start server
-python main.py
+# Start server (with venv activated)
+cd backend && python main.py
 ```
+
+Or manual setup from project root: `pip install -r backend/requirements-dev.txt`, then create `backend/.env` from `backend/.env.example`.
 
 ✅ Backend running at: `http://localhost:8000`
 
