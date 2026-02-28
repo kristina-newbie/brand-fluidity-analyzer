@@ -1,47 +1,64 @@
-# Brand Fluidity Analyzer
+# Brand Liquidity Analyzer
 
-A comprehensive application for analyzing how brand identities evolve across text and visual content over time, using advanced NLP, computer vision, and AI-powered insights.
+A computational framework for measuring brand identity evolution over time, grounded in Bauman's (2000) liquid modernity theory. Uses Sentence-BERT, CLIP, NLTK, and Gensim to quantify how brands adapt their textual and visual identities across temporal windows.
 
-## 📊 What It Does
+Developed as part of academic research targeting publication in the *International Journal of Research in Marketing* (IJRM).
 
-The Brand Fluidity Analyzer calculates four core metrics based on academic research in brand semiotics:
+## What It Does
 
-1. **Textual Fluidity Index (TFI)** - Measures semantic drift, tone diversity, and topic turnover in brand messaging
-2. **Visual Fluidity Index (VFI)** - Analyzes visual evolution through color entropy, motif diversity, and visual drift
-3. **Cross-Modal Coherence Score (CMCS)** - Evaluates alignment between text and visual content
-4. **Brand Fluidity Index (BFI)** - Composite score with AI-generated strategic insights
+The Brand Liquidity Analyzer measures brand identity change through four core metrics:
 
-### Fluidity Categories
+1. **Textual Liquidity Index (TLI)** — Semantic drift in brand language over time (Sentence-BERT centroid distances)
+2. **Visual Liquidity Index (VLI)** — Visual drift in brand imagery over time (CLIP centroid distances)
+3. **Cross-Modal Coherence Score (CMCS)** — Alignment between textual and visual brand territories (centroid-to-centroid similarity in CLIP's joint latent space). Reported as a **separate axis**, not included in BLI.
+4. **Brand Liquidity Index (BLI)** — Composite: `BLI = 0.5 × TLI + 0.5 × VLI`
 
-- **0.0-0.3 (Solid)**: Consistent identity, stable brand cues
-- **0.3-0.6 (Semi-fluid)**: Balanced - recognizable yet adaptive
-- **0.6-1.0 (Highly Fluid)**: Dynamic, context-responsive identity
+Additionally, second-order diagnostic metrics capture *how* the brand evolves:
 
-## 🏗️ Architecture
+- **Drift Volatility** — Stability of evolution (sample std of drift scores)
+- **Coherence Trajectory** — OLS slope of CMCS over time
+- **Drift Ratio** — Semantic Drift / Visual Drift (raw values)
+- **Directional Consistency** — Whether evolution follows a purposeful direction or oscillates
+- **Topic-Semantic Decoupling Index (TSDI)** — Topic Turnover / Semantic Drift (cultural agility indicator)
+
+### Key Methodological Distinctions
+
+**Liquidity vs. Diversity.** Liquidity measures change *across* time periods, not variety *within* a period. A brand may have rich thematic content while maintaining perfect temporal stability.
+
+**Liquidity vs. Coherence.** These are orthogonal dimensions. A brand can be highly liquid yet coherent (evolving in integrated ways across modalities), or solid yet fragmented (stable but misaligned across channels).
+
+### Interpretation Categories
+
+| BLI Range | Category | Interpretation |
+|-----------|----------|----------------|
+| 0.00–0.30 | **Solid** | Strong continuity across both dimensions |
+| 0.30–0.60 | **Semi-solid** | Controlled evolution with stable core identity |
+| 0.60–0.80 | **Semi-liquid** | Active repositioning, adaptive identity |
+| 0.80–1.00 | **Liquid** | Fundamental brand transformation |
+
+## Architecture
 
 ```
 ┌─────────────────────┐
-│   React Frontend    │  ← Drag & drop interface
-│   (Lovable-ready)   │
+│   React Frontend    │  ← Drag & drop interface (Lovable.dev)
 └──────────┬──────────┘
            │ HTTP/REST
 ┌──────────▼──────────┐
-│   FastAPI Backend   │  ← File upload & analysis
+│  FastAPI Backend     │  ← File upload, analysis, API v5.0
 └──────────┬──────────┘
            │
     ┌──────▼──────┐
     │   Analysis  │
     ├─────────────┤
-    │ • CLIP      │  ← Image/text embeddings
-    │ • SBERT     │  ← Semantic analysis
-    │ • NLTK      │  ← Sentiment analysis
-    │ • Gensim    │  ← Topic modeling
-    │ • OpenCV    │  ← Visual analysis
-    │ • Claude AI │  ← Strategic insights
+    │ • CLIP      │  ← Visual embeddings & cross-modal coherence
+    │ • SBERT     │  ← Semantic text embeddings (all-MiniLM-L6-v2)
+    │ • NLTK      │  ← Sentiment analysis (VADER)
+    │ • Gensim    │  ← Topic modeling (LDA)
+    │ • Claude AI │  ← Strategic insights generation
     └─────────────┘
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -59,19 +76,7 @@ cd backend
 pip install -r requirements.txt --break-system-packages
 ```
 
-Required packages include:
-- `fastapi` - API framework
-- `uvicorn` - ASGI server
-- `torch` - PyTorch for deep learning
-- `clip` - OpenAI's CLIP model
-- `sentence-transformers` - Sentence-BERT
-- `nltk` - Natural language toolkit
-- `gensim` - Topic modeling
-- `opencv-python` - Computer vision
-- `anthropic` - Claude API client
-- `numpy` - Numerical computing
-- `pandas` - Data manipulation
-- `scikit-learn` - Machine learning utilities
+Required packages include: `fastapi`, `uvicorn`, `torch`, `clip`, `sentence-transformers`, `nltk`, `gensim`, `opencv-python`, `anthropic`, `numpy`, `pandas`, `scikit-learn`.
 
 2. **Download NLTK data:**
 
@@ -86,20 +91,13 @@ cp .env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY
 ```
 
-Or create a `.env` file with:
-```
-ANTHROPIC_API_KEY=your_api_key_here
-```
-
 4. **Run the backend:**
 
 ```bash
 python main.py
 ```
 
-The API will be available at `http://localhost:8000`
-
-**First run**: Models (CLIP, Sentence-BERT) will download automatically (~400MB). This may take a few minutes.
+The API will be available at `http://localhost:8000`. On first run, CLIP and Sentence-BERT models download automatically (~400MB).
 
 ### Frontend Setup
 
@@ -107,383 +105,186 @@ The API will be available at `http://localhost:8000`
 
 1. Go to [Lovable.dev](https://lovable.dev)
 2. Create a new project
-3. Copy the contents of `frontend/BrandFluidityAnalyzer.jsx`
-4. Paste it as your main component
-5. Install required dependencies:
-   - `lucide-react` (for icons)
-6. Set environment variable: `REACT_APP_API_URL=http://localhost:8000`
-7. Deploy or run locally
+3. Copy `frontend/BrandFluidityAnalyzer.jsx` as the main component
+4. Set environment variable: `REACT_APP_API_URL=http://localhost:8000`
 
 #### Option 2: Manual React Setup
 
 ```bash
-npx create-react-app brand-fluidity-frontend
-cd brand-fluidity-frontend
+npx create-react-app brand-liquidity-frontend
+cd brand-liquidity-frontend
 npm install lucide-react
-```
-
-Copy `BrandFluidityAnalyzer.jsx` to `src/App.js`, then:
-
-```bash
+# Copy BrandFluidityAnalyzer.jsx to src/App.js
 npm start
 ```
 
-## 📖 Usage Guide
+## Usage Guide
 
-### 1. Upload Tab
+### 1. Upload Materials
 
-1. **Enter Brand Name**: Type the brand you're analyzing (e.g., "Nike", "Apple")
-
-2. **Upload Text Files**:
-   - Drag and drop `.txt` or `.md` files
-   - Examples: brand manifestos, ad copy, social media posts, website text
-   - Optionally assign years to track evolution
-
-3. **Upload Images**:
-   - Drag and drop images (`.jpg`, `.png`, etc.)
-   - Examples: logos, product photos, ad visuals, social media graphics
-   - Optionally assign years
-
-4. **Click "Upload Files"**
-
-### 2. Analyze Tab
-
-1. Review your uploaded files
-2. Click "Analyze Brand Fluidity"
-3. Wait for processing (typically 30-120 seconds depending on file count)
-
-### 3. Results Tab
-
-View comprehensive analysis including:
-
-- **Overall BFI Score** and category
-- **Individual metric breakdowns**
-- **Component scores** (semantic drift, color entropy, etc.)
-- **AI-Generated Strategic Insights** powered by Claude
-- **Recommendations** for brand strategy
-
-## 🎯 Use Cases
-
-### Brand Managers
-- Monitor brand consistency over time
-- Identify when messaging drifts from core values
-- Optimize the balance between stability and adaptation
-
-### Marketing Agencies
-- Benchmark clients against competitors
-- Demonstrate ROI of brand consistency efforts
-- Guide rebranding decisions with data
-
-### Researchers
-- Study brand evolution patterns
-- Analyze cultural shifts through brand language
-- Explore cross-modal communication strategies
-
-### Example Analysis Workflow
+Upload brand texts (`.txt`, `.md`) and images (`.jpg`, `.png`, etc.) organized by time period. Files must include the year in their filename for automatic period detection:
 
 ```
-Brand: Sustainable Fashion Startup
-Files: 
-  - 2020_mission.txt
-  - 2021_campaign.txt
-  - 2022_manifesto.txt
-  - 2023_website.txt
-  + 15 images from campaigns (2020-2023)
-
-Results:
-  TFI: 0.45 (Semi-fluid) - Adaptive messaging
-  VFI: 0.62 (Fluid) - Evolving visual identity
-  CMCS: 0.78 (Strong coherence)
-  BFI: 0.52 (Semi-fluid)
-  
-Insight: Brand maintains semantic core while 
-         experimenting with visual expression.
-         Recommendation: Establish visual guidelines
-         to match textual consistency.
+✅ nike_2019_manifesto.txt, campaign_2021.jpg
+❌ manifesto.txt, campaign.jpg (no year → defaults to unknown)
 ```
 
-## 🔧 API Endpoints
+### 2. Run Analysis
 
-### POST `/api/upload`
+Click "Analyze Brand Liquidity". Processing typically takes 30–120 seconds depending on file count.
+
+### 3. Interpret Results
+
+Results include core metrics (TLI, VLI, CMCS, BLI), second-order pattern metrics, period-by-period evolution data, and AI-generated strategic insights powered by Claude.
+
+## Technical Details
+
+### Textual Liquidity Index (TLI)
+
+```
+TLI = Semantic Drift (normalized)
+```
+
+Semantic Drift is the average cosine distance between Sentence-BERT period centroids across consecutive time periods:
+
+```
+SD = (1/(n-1)) × Σ (1 - cos(μ_t, μ_{t+1}))
+```
+
+where μ_t is the centroid of all text embeddings in period t.
+
+Normalization bounds: [0.05, 0.25]. Topic Turnover (LDA-based) and Tone Diversity (VADER) are computed as diagnostic descriptors but are **not** included in TLI.
+
+### Visual Liquidity Index (VLI)
+
+```
+VLI = Visual Drift (normalized)
+```
+
+Visual Drift is the average cosine distance between CLIP image-embedding centroids across consecutive periods.
+
+Normalization bounds: [0.02, 0.12]. Color Entropy and Motif Diversity are computed as descriptive metrics but are **not** included in VLI.
+
+### Cross-Modal Coherence Score (CMCS)
+
+Measures holistic alignment between textual and visual brand territories using centroid-to-centroid cosine similarity in CLIP's joint latent space:
+
+```
+CMCS = mean(cos(text_centroid_t, image_centroid_t))  across periods
+```
+
+Text and image corpora are treated as independent collections per period (not paired). CMCS is **deliberately excluded** from BLI — liquidity and coherence are orthogonal dimensions following Kapferer's (2012) Brand Identity Prism.
+
+Normalization bounds: [0.20, 0.45], recalibrated for the centroid method (ecological correlation effect; Robinson, 1950).
+
+### Brand Liquidity Index (BLI)
+
+```
+BLI = 0.5 × TLI + 0.5 × VLI
+```
+
+Equal weighting of textual and visual dimensions. Weights are configurable.
+
+### Second-Order Metrics
+
+These capture *how* the brand evolves, not just how much:
+
+- **Drift Volatility**: Sample std (ddof=1) of period-to-period drift scores. Low = stable evolution; high = erratic changes.
+- **Coherence Trajectory**: OLS slope of period CMCS over time. Positive = improving integration.
+- **Drift Ratio**: Raw Semantic Drift / Raw Visual Drift. High-performing brands cluster around 3.0–3.5 ("visual fortress with narrative flexibility").
+- **Directional Consistency**: Mean cosine similarity between consecutive drift vectors. Near +1 = purposeful evolution; near 0 = random drift.
+- **TSDI**: Topic Turnover / Raw Semantic Drift. High = cultural agility (rotating themes while preserving semantic core).
+
+## API Endpoints
+
+### `POST /api/upload`
+
 Upload brand materials.
 
-**Parameters:**
-- `brand_name` (string): Brand identifier
-- `texts` (files[]): Text files
-- `images` (files[]): Image files
-- `years` (JSON): Optional year mapping
+**Parameters:** `brand_name` (string), `texts` (files[]), `images` (files[]), `years` (JSON, optional year mapping)
 
 **Response:**
 ```json
 {
   "status": "success",
+  "brand_name": "Nike",
   "texts_uploaded": 5,
-  "images_uploaded": 12
+  "images_uploaded": 12,
+  "text_files": [{"filename": "...", "year": "2019"}],
+  "image_files": [{"filename": "...", "year": "2021"}]
 }
 ```
 
-### POST `/api/analyze`
-Run fluidity analysis.
+### `POST /api/analyze`
 
-**Parameters:**
-- `brand_name` (string): Brand to analyze
-- `include_llm_insights` (bool): Generate AI insights
+Run liquidity analysis.
+
+**Parameters:** `brand_name` (string), `include_llm_insights` (bool, default: true)
 
 **Response:**
 ```json
 {
   "brand_name": "Nike",
-  "textual_fluidity": {
-    "TFI": 0.612,
-    "semantic_drift": 0.543,
-    "tone_diversity": 0.621,
-    "topic_turnover": 0.672,
-    "interpretation": "Semi-fluid..."
+  "analyzer_version": "5.0",
+  "periods_analyzed": ["2015", "2017", "2019", "2021", "2023", "2025"],
+  "textual": {
+    "tli": 0.45,
+    "semantic_drift": 0.45,
+    "semantic_drift_raw": 0.14,
+    "topic_turnover": 0.67,
+    "tone_diversity": 0.32,
+    "period_similarities": {"2015->2017": 0.89, "2017->2019": 0.86}
   },
-  "visual_fluidity": {...},
-  "cross_modal_coherence": {...},
-  "brand_fluidity_index": {
-    "BFI": 0.648,
-    "category": "Semi-fluid"
+  "visual": {
+    "vli": 0.28,
+    "visual_drift": 0.28,
+    "visual_drift_raw": 0.05,
+    "color_entropy": 0.61,
+    "motif_diversity": 0.43
+  },
+  "coherence": {
+    "cmcs": 0.54,
+    "cmcs_raw": 0.33,
+    "temporal_coherence": 0.02,
+    "period_coherences": {"2015": 0.31, "2017": 0.34}
+  },
+  "bli": {
+    "score": 0.37,
+    "category": "Semi-solid",
+    "description": "Controlled evolution with stable core identity"
+  },
+  "second_order": {
+    "semantic_drift_volatility": 0.03,
+    "visual_drift_volatility": 0.01,
+    "coherence_trajectory": 0.005,
+    "drift_ratio": 2.8,
+    "directional_consistency_text": 0.42,
+    "directional_consistency_visual": 0.31,
+    "topic_semantic_decoupling": 4.8
   },
   "llm_insights": {
-    "insights": "Strategic analysis..."
+    "insights": "Strategic analysis...",
+    "model": "claude-sonnet-4-5"
   }
 }
 ```
 
-### GET `/api/brands`
-List all analyzed brands.
+### `GET /api/brands`
 
-### DELETE `/api/brands/{brand_name}`
-Delete a brand and its files.
+List all analyzed brands with file counts and detected periods.
 
-## 📚 Technical Details
+### `DELETE /api/brands/{brand_name}`
 
-### Textual Fluidity Index (TFI)
+Delete a brand and its uploaded files.
 
-**Components:**
-1. **Semantic Drift**: Cosine distance between SBERT embeddings across time periods
-2. **Tone Diversity**: Standard deviation of VADER sentiment scores
-3. **Topic Turnover**: LDA-based topic distribution variance
-
-**Formula:**
-```
-TFI = (1/3) × (SD + TD + TT)
-```
-
-### Visual Fluidity Index (VFI)
-
-**Components:**
-1. **Visual Drift**: K-means clustering variance of CLIP embeddings
-2. **Color Entropy**: Shannon entropy of HSV color histograms
-3. **Motif Diversity**: Embedding distribution standard deviation
-
-**Formula:**
-```
-VFI = (1/3) × (VD + CE + MD)
-```
-
-### Cross-Modal Coherence Score (CMCS)
-
-Measures text-image alignment using CLIP's joint embedding space:
-```
-CMCS = mean(cosine_similarity(text_embed, image_embed))
-```
-
-### Brand Fluidity Index (BFI)
-
-Composite score:
-```
-BFI = 0.4×TFI + 0.4×VFI + 0.2×(1-CMCS)
-```
-
-## 🛠️ Customization
-
-### Adjust Metric Weights
-
-In `brand_fluidity_analyzer.py`, modify the `compute_brand_fluidity_index` function:
-
-```python
-def compute_brand_fluidity_index(self, TFI, VFI, CMCS, 
-                                  alpha=0.5,  # ← Increase text weight
-                                  beta=0.3,   # ← Decrease visual weight
-                                  gamma=0.2):
-    ...
-```
-
-### Change AI Model
-
-In `llm_analyzer.py`, update the model:
-
-```python
-message = self.client.messages.create(
-    model="claude-sonnet-4-5-20250929",  # ← Change model
-    max_tokens=2000,
-    ...
-)
-```
-
-### Add New Metrics
-
-Extend `BrandFluidityAnalyzer` class with custom analysis functions:
-
-```python
-def calculate_custom_metric(self, data):
-    # Your metric calculation
-    return score
-```
-
-## 🎨 Frontend Customization
-
-The React component is fully customizable:
-
-- **Colors**: Modify Tailwind classes (`bg-blue-600` → `bg-purple-600`)
-- **Layout**: Adjust grid layouts (`md:grid-cols-2` → `md:grid-cols-3`)
-- **Components**: Add charts using Recharts or Chart.js
-- **Styling**: Works with any CSS framework (Tailwind, Material-UI, etc.)
-
-## 🐛 Troubleshooting
-
-### Installation Issues
-
-#### "ModuleNotFoundError: No module named 'torch'"
-```bash
-pip install torch torchvision --break-system-packages
-```
-
-#### "ModuleNotFoundError: No module named 'clip'"
-```bash
-pip install git+https://github.com/openai/CLIP.git
-```
-
-#### "NLTK data not found"
-```python
-import nltk
-nltk.download('vader_lexicon')
-nltk.download('punkt')
-```
-
-### Model & Network Issues
-
-#### "CLIP model download fails"
-The model downloads automatically on first run. Ensure:
-- Active internet connection
-- Sufficient disk space (~400MB for models)
-- No firewall blocking GitHub/Hugging Face
-
-If download fails, try:
-```python
-import clip
-clip.load("ViT-B/32", device="cpu")  # Forces download
-```
-
-#### "Sentence-BERT model download fails"
-```python
-from sentence_transformers import SentenceTransformer
-SentenceTransformer('all-MiniLM-L6-v2')  # Forces download
-```
-
-### Runtime Errors
-
-#### "Analysis failed: Internal Server Error" or "500 Internal Server Error"
-
-**Check backend logs** in the terminal where you ran `python main.py`. Common causes:
-
-1. **Memory Error** (too many images):
-   - Solution: Process in smaller batches (reduce image count)
-   - Or: Increase system memory/swap
-
-2. **CUDA/GPU Error**:
-   ```python
-   # In brand_fluidity_analyzer.py, force CPU usage:
-   device = "cpu"  # Instead of "cuda"
-   ```
-
-3. **JSON Serialization Error** (`TypeError: keys must be str, int, float, bool or None, not numpy.int32`):
-   - **Fixed in latest version** - ensure your `main.py` has the `convert_numpy_types()` function
-   - Update with the latest code that includes numpy type conversion
-
-#### "CORS errors in frontend"
-Ensure:
-- Backend is running on `http://localhost:8000`
-- Frontend `API_URL` matches backend address
-- CORS is enabled in `main.py` (already configured)
-
-#### "Analysis takes too long"
-Performance tips:
-- **Reduce file count**: 20-50 files per analysis is optimal
-- **Resize images**: Keep under 1MB each
-- **Use GPU**: Install CUDA-enabled PyTorch for 3-5x speedup
-- **Batch processing**: Already implemented for large image sets
-
-### Data Issues
-
-#### "Insufficient data" errors
-- Need at least **2 text files** for TFI calculation
-- Need at least **2 images** for VFI calculation
-- Year detection requires year in filename (e.g., `brand_2023.txt`)
-
-#### "Year not detected from filename"
-Filename must contain 4-digit year:
-```
-✅ Good: nike_2020_manifesto.txt, campaign_2021.jpg
-❌ Bad: manifesto.txt, campaign.jpg
-```
-
-Files without years default to 2024.
-
-### API Issues
-
-#### "Brand not found" (404)
-- Ensure you clicked "Upload Files" before "Analyze"
-- Check that files were successfully uploaded
-- Verify brand name matches exactly (case-sensitive)
-
-#### "Anthropic API Error"
-- Check your `.env` file has valid `ANTHROPIC_API_KEY`
-- Verify API key has sufficient credits
-- Check [Anthropic status page](https://status.anthropic.com)
-
-### Debug Mode
-
-For detailed error messages, run backend with:
-```bash
-python3 main.py  # Already has detailed logging
-```
-
-Look for:
-```
-======================================================================
-ERROR OCCURRED DURING ANALYSIS:
-Error type: [Error Name]
-Error message: [Details]
-======================================================================
-```
-
-## 📝 File Naming Conventions
-
-For automatic year detection, include year in filename:
+## Project Structure
 
 ```
-✅ Good:
-- nike_2020_manifesto.txt
-- campaign_2021.jpg
-- brand_guidelines_2023.txt
-
-❌ Not automatically detected:
-- manifesto.txt (defaults to 2024)
-- campaign.jpg (defaults to 2024)
-```
-
-## 📂 Project Structure
-
-```
-brand-fluidity-analyzer/
+brand-liquidity-analyzer/
 ├── backend/
-│   ├── main.py                      # FastAPI server with error handling
-│   ├── brand_fluidity_analyzer.py   # Core metrics calculation
-│   ├── llm_analyzer.py              # Claude AI insights
+│   ├── main.py                      # FastAPI server (v5.0)
+│   ├── brand_liquidity_analyzer.py  # Core metrics computation
+│   ├── llm_analyzer.py              # Claude AI strategic insights
 │   ├── requirements.txt             # Python dependencies
 │   ├── .env                         # Environment variables (create this)
 │   └── uploads/                     # Uploaded files (auto-created)
@@ -493,67 +294,111 @@ brand-fluidity-analyzer/
 ├── frontend/
 │   └── BrandFluidityAnalyzer.jsx    # React component
 ├── IJRM-Core_Metrics.docx           # Research documentation
-└── README.md                        # This file
+└── README.md
 ```
 
-## 🔐 Security Notes
+## Customization
 
-- The app stores uploaded files in `/backend/uploads` directory
-- Only text content and image embeddings are sent to Claude API for insights
-- Delete brands after analysis to manage storage
-- In production, implement:
-  - Authentication/authorization
-  - Rate limiting
-  - Input validation and sanitization
-  - HTTPS/TLS
-  - File size limits
-  - Restricted CORS origins
+### Adjust Metric Weights
 
-## 📄 License
+In `brand_liquidity_analyzer.py`, modify the BLI computation:
 
-This project is based on academic research in brand semiotics and fluidity theory.
+```python
+bli = self.compute_bli(tli, vli, weights=(0.6, 0.4))  # More text weight
+```
 
-## 🙏 Acknowledgments
+### Adjust Normalization Bounds
 
-- **CLIP** by OpenAI - Vision-language model
-- **Sentence-BERT** by UKP Lab - Semantic text embeddings
-- **Claude** by Anthropic - Strategic insights generation
-- **Brand fluidity metrics** based on liquid modernity theory (Bauman, 2000)
+```python
+params = NormalizationParams(
+    semantic_drift_min=0.05,
+    semantic_drift_max=0.25,
+    visual_drift_min=0.02,
+    visual_drift_max=0.12,
+    cmcs_min=0.20,
+    cmcs_max=0.45,
+)
+analyzer = BrandLiquidityAnalyzer(norm_params=params)
+```
 
-## 💡 Future Enhancements
+### Change AI Model
 
-- [ ] Multi-brand comparative analysis
-- [ ] Time-series visualizations with charts
-- [ ] Export reports as PDF with branded templates
-- [ ] Real-time brand monitoring via APIs
-- [ ] Social media API integrations (Twitter, Instagram)
-- [ ] Custom metric builder UI
-- [ ] Historical benchmark database
-- [ ] GPU acceleration for faster processing
-- [ ] Batch analysis for multiple brands
-- [ ] Advanced filtering and search
+In `llm_analyzer.py`:
 
-## 📧 Support
+```python
+model="claude-sonnet-4-5-20250929"  # Change to preferred model
+```
 
-For issues or questions:
-1. Check the **Troubleshooting** section above
-2. Review backend logs in terminal for detailed errors
-3. Refer to research documentation in `IJRM-Core_Metrics.docx`
-4. Open an issue on GitHub with:
-   - Error message from terminal
-   - Steps to reproduce
-   - File counts and sizes
-   - Python version and OS
+## Troubleshooting
 
-## 🔄 Recent Updates
+### Installation Issues
+
+**"ModuleNotFoundError: No module named 'clip'"**
+```bash
+pip install git+https://github.com/openai/CLIP.git
+```
+
+**"NLTK data not found"**
+```python
+import nltk
+nltk.download('vader_lexicon')
+nltk.download('punkt')
+```
+
+### Runtime Errors
+
+**"Analysis failed: 500 Internal Server Error"** — Check backend terminal logs. Common causes: memory errors with large image sets (reduce batch size), CUDA/GPU issues (set `device = "cpu"`), or JSON serialization errors (already handled via `convert_numpy_types()`).
+
+**"CORS errors in frontend"** — Ensure backend runs on `http://localhost:8000` and frontend `API_URL` matches. CORS is pre-configured in `main.py`.
+
+**"Insufficient data"** — Need at least 2 text files for TLI and 2 images for VLI. Year must be in filename (4-digit: e.g., `brand_2023.txt`).
+
+### Performance Tips
+
+- 20–50 files per analysis is optimal
+- Keep images under 1MB each
+- Install CUDA-enabled PyTorch for 3–5× speedup on GPU
+
+## Security Notes
+
+- Uploaded files are stored in `/backend/uploads`
+- Only text content and image embeddings are sent to Claude API
+- In production: implement authentication, rate limiting, HTTPS, and restricted CORS origins
+
+## Theoretical Foundations
+
+This framework operationalizes concepts from:
+
+- **Bauman (2000)** — Liquid modernity theory
+- **Kapferer (2012)** — Brand Identity Prism (coherence as orthogonal to liquidity)
+- **Reimers & Gurevych (2019)** — Sentence-BERT for semantic embeddings
+- **Radford et al. (2021)** — CLIP for visual embeddings and cross-modal alignment
+- **Hamilton et al. (2018)** — Diachronic semantic change measurement
+- **Hutto & Gilbert (2014)** — VADER sentiment analysis
+- **Blei et al. (2003)** — LDA topic modeling
+
+## Version History
+
+**v5.0** (February 2025)
+- Renamed all terminology from "Fluidity" to "Liquidity" (aligned with Bauman's theory)
+- TFI → TLI, VFI → VLI, BFI → BLI
+- TLI = Semantic Drift only (Topic Turnover moved to diagnostic)
+- VLI = Visual Drift only (Color Entropy, Motif Diversity moved to descriptive)
+- BLI = 0.5 × TLI + 0.5 × VLI (CMCS excluded — orthogonal axis)
+- CMCS rewritten: centroid-to-centroid cosine similarity in CLIP joint space
+- Added second-order metrics: Drift Volatility, Coherence Trajectory, Drift Ratio, Directional Consistency, TSDI
+- Normalization bounds recalibrated for centroid method
+- Temporal Coherence uses sample std (ddof=1, Bessel's correction)
+
+**v4.0** (December 2024)
+- Separated TLI from Topic Turnover
+- Separated VLI from Color Entropy / Motif Diversity
+- Removed CMCS from BLI formula
 
 **v1.1.0** (December 2024)
-- ✅ Fixed JSON serialization error for numpy types
-- ✅ Added comprehensive error handling and logging
-- ✅ Improved memory management for large image sets
-- ✅ Enhanced debugging output for troubleshooting
-- ✅ Added numpy type conversion utility
+- Fixed JSON serialization for numpy types
+- Added comprehensive error handling and logging
 
 ---
 
-**Built with ❤️ for brand researchers and marketing professionals**
+*Built for brand researchers and marketing professionals. Part of ongoing IJRM research on brand identity evolution in liquid modernity.*
