@@ -40,8 +40,8 @@ def test_nltk_data():
         from nltk.sentiment import SentimentIntensityAnalyzer
         from nltk.tokenize import sent_tokenize
         
-        sia = SentimentIntensityAnalyzer()
-        tokens = sent_tokenize("This is a test sentence. This is another one.")
+        SentimentIntensityAnalyzer()
+        sent_tokenize("This is a test sentence. This is another one.")
         print(f"  ✓ NLTK data available")
         return True
     except Exception as e:
@@ -58,7 +58,7 @@ def test_models():
         import clip
         import torch
         print("  Loading CLIP model (this may take a moment)...")
-        model, preprocess = clip.load("ViT-B/32", device="cpu")
+        clip.load("ViT-B/32", device="cpu")
         print("  ✓ CLIP model loaded")
     except Exception as e:
         print(f"  ✗ CLIP model failed - {e}")
@@ -68,7 +68,7 @@ def test_models():
     try:
         from sentence_transformers import SentenceTransformer
         print("  Loading Sentence Transformer model...")
-        sbert = SentenceTransformer('all-MiniLM-L6-v2')
+        SentenceTransformer('all-MiniLM-L6-v2')
         print("  ✓ Sentence Transformer loaded")
     except Exception as e:
         print(f"  ✗ Sentence Transformer failed - {e}")
@@ -77,15 +77,15 @@ def test_models():
     return True
 
 def test_analyzer():
-    """Test if BrandFluidityAnalyzerV2 can be instantiated."""
+    """Test if BrandLiquidityAnalyzer can be instantiated."""
     print("\nTesting BrandFluidityAnalyzerV2...")
     try:
-        from brand_fluidity_analyzer_v2 import BrandFluidityAnalyzerV2
-        analyzer = BrandFluidityAnalyzerV2()
-        print("  ✓ BrandFluidityAnalyzerV2 initialized successfully")
+        from brand_fluidity_analyzer_v2 import BrandLiquidityAnalyzer
+        BrandLiquidityAnalyzer()
+        print("  ✓ BrandLiquidityAnalyzer initialized successfully")
         return True
     except Exception as e:
-        print(f"  ✗ BrandFluidityAnalyzerV2 failed - {e}")
+        print(f"  ✗ BrandLiquidityAnalyzer failed - {e}")
         return False
 
 def test_api_key():
