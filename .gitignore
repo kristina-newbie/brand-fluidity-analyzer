@@ -1,0 +1,33 @@
+# Virtual environments (use one .venv at project root)
+.venv/
+venv/
+env/
+backend/venv/
+backend/.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads / runtime
+backend/uploads/

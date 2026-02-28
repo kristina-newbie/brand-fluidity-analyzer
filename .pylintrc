@@ -1,0 +1,18 @@
+# Pylint config for brand-fluidity-analyzer (run: pylint backend)
+[MASTER]
+init-hook='import sys; sys.path.insert(0, "backend")'
+jobs=0
+
+[MESSAGES CONTROL]
+# Tweak as needed; disable noisy ones for a large codebase
+# disable=duplicate-code
+
+[FORMAT]
+max-line-length=120
+
+[BASIC]
+good-names=i,j,k,ex,_,id,df,e
+
+[DESIGN]
+max-args=10
+max-attributes=12

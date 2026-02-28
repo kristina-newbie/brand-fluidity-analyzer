@@ -10,12 +10,15 @@ echo "Checking Python version..."
 python_version=$(python3 --version 2>&1 | awk '{print $2}')
 echo "Python version: $python_version"
 
-# Create virtual environment (optional but recommended)
-read -p "Create virtual environment? (y/n) " -n 1 -r
+# Virtual environment: recommend creating at PROJECT ROOT to avoid duplicate venvs.
+# From project root: python3 -m venv .venv && source .venv/bin/activate
+# Then: pip install -r backend/requirements-dev.txt
+# See DEVELOPMENT.md for full instructions.
+read -p "Create virtual environment in backend/? (y/n, prefer .venv at project root) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
-    echo "Creating virtual environment..."
+    echo "Creating virtual environment in backend/..."
     python3 -m venv venv
     source venv/bin/activate
 fi

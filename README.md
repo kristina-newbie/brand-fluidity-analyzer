@@ -69,7 +69,14 @@ Additionally, second-order diagnostic metrics capture *how* the brand evolves:
 
 ### Backend Setup
 
-1. **Install Python dependencies:**
+**Recommended:** Use a single virtual environment at the **project root** (see [DEVELOPMENT.md](DEVELOPMENT.md) for venv + pylint setup). Quick path:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements-dev.txt
+```
+
+Alternatively, install without a venv (not recommended):
 
 ```bash
 cd backend
