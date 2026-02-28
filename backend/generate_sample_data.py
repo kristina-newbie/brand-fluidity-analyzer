@@ -6,7 +6,6 @@ Creates synthetic brand materials for testing the application.
 import os
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
-import numpy as np
 
 def create_sample_texts(output_dir="sample_data/texts"):
     """Generate sample brand texts across different years."""
@@ -87,9 +86,12 @@ def create_sample_images(output_dir="sample_data/images"):
             
             # Add year text
             try:
-                # Try to use a default font, but don't fail if not available
+                # Pillow uses FreeType for TrueType fonts; failures here are typically missing font files
+                # or missing/unsupported FreeType support in the runtime.
                 font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
-            except:
+            except (OSError, IOError, ImportError) as _:
+                # Fall back to a built-in bitmap font if the TTF can't be loaded.
+                # (e.g., font file not found, cannot open resource, FreeType unavailable)
                 font = ImageFont.load_default()
             
             draw.text((350, 270), year, fill=(255, 255, 255), font=font)

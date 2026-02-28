@@ -30,7 +30,6 @@ import os
 import warnings
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Any
-from collections import defaultdict
 
 import numpy as np
 import torch
@@ -154,15 +153,7 @@ class BrandLiquidityAnalyzer:
                 emb = self.embed_texts(texts).mean(axis=0, keepdims=True)
             period_embeddings[period] = emb
 
-        similarities: Dict[str, float] = {}
-        drifts: List[float] = []
-        for i in range(len(period_keys) - 1):
-            p1, p2 = period_keys[i], period_keys[i + 1]
-            sim = float(cosine_similarity(period_embeddings[p1], period_embeddings[p2])[0, 0])
-            similarities[f"{p1}->{p2}"] = sim
-            drifts.append(1.0 - sim)
-
-        raw_drift = float(np.mean(drifts)) if drifts else 0.0
+        raw_drift, similarities = self._compute_consecutive_cosine_drift(period_keys, period_embeddings)
         norm_drift = self._normalize(raw_drift, self.norm_params.semantic_drift_min, self.norm_params.semantic_drift_max)
         return norm_drift, raw_drift, similarities, period_embeddings
 
@@ -312,15 +303,7 @@ class BrandLiquidityAnalyzer:
             centroid = emb.mean(axis=0, keepdims=True)
             period_centroids[period] = centroid
 
-        similarities: Dict[str, float] = {}
-        drifts: List[float] = []
-        for i in range(len(period_keys) - 1):
-            p1, p2 = period_keys[i], period_keys[i + 1]
-            sim = float(cosine_similarity(period_centroids[p1], period_centroids[p2])[0, 0])
-            similarities[f"{p1}->{p2}"] = sim
-            drifts.append(1.0 - sim)
-
-        raw_drift = float(np.mean(drifts)) if drifts else 0.0
+        raw_drift, similarities = self._compute_consecutive_cosine_drift(period_keys, period_centroids)
         norm_drift = self._normalize(raw_drift, self.norm_params.visual_drift_min, self.norm_params.visual_drift_max)
         return norm_drift, raw_drift, similarities, period_centroids
 
@@ -365,13 +348,7 @@ class BrandLiquidityAnalyzer:
                 period_color_entropies[period] = 0.0
                 continue
 
-            kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init=10)
-            labels = kmeans.fit_predict(pixels)
-            counts = np.bincount(labels, minlength=num_colors)
-            probs = counts / counts.sum()
-            probs = probs[probs > 0]
-            entropy = -np.sum(probs * np.log(probs))
-            norm_entropy = float(entropy / np.log(num_colors))
+            norm_entropy, _raw_entropy = self._kmeans_entropy(pixels, num_colors)
             period_color_entropies[period] = norm_entropy
             all_colors.append(pixels)
 
@@ -379,15 +356,26 @@ class BrandLiquidityAnalyzer:
             return 0.0, 0.0, period_color_entropies
 
         all_colors_arr = np.vstack(all_colors)
-        kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init=10)
-        labels = kmeans.fit_predict(all_colors_arr)
-        counts = np.bincount(labels, minlength=num_colors)
-        probs = counts / counts.sum()
-        probs = probs[probs > 0]
-        raw_entropy = -np.sum(probs * np.log(probs))
-        norm_entropy = float(raw_entropy / np.log(num_colors))
+        norm_entropy, raw_entropy = self._kmeans_entropy(all_colors_arr, num_colors)
         return norm_entropy, raw_entropy, period_color_entropies
 
+
+    @staticmethod
+    def _kmeans_entropy(arr: np.ndarray, n_clusters: int) -> Tuple[float, float]:
+        """Run KMeans and return (normalized_entropy, raw_entropy)."""
+        if arr.size == 0 or len(arr) < n_clusters or n_clusters <= 1:
+            return 0.0, 0.0
+
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(arr)
+
+        counts = np.bincount(labels, minlength=n_clusters)
+        probs = counts / counts.sum()
+        probs = probs[probs > 0]
+
+        raw_entropy = float(-np.sum(probs * np.log(probs)))
+        norm_entropy = float(raw_entropy / np.log(n_clusters))
+        return norm_entropy, raw_entropy
     # -------------------- Motif Diversity (Descriptive) --------------------
 
     def compute_motif_diversity(
@@ -542,15 +530,18 @@ class BrandLiquidityAnalyzer:
 
     # -------------------- Index Composition --------------------
 
-    def compute_tli(self, semantic_drift: float) -> float:
+    @staticmethod
+    def compute_tli(semantic_drift: float) -> float:
         """TLI = Semantic Drift (normalized). Textual Liquidity Index."""
         return float(semantic_drift)
 
-    def compute_vli(self, visual_drift: float) -> float:
+    @staticmethod
+    def compute_vli(visual_drift: float) -> float:
         """VLI = Visual Drift (normalized). Visual Liquidity Index."""
         return float(visual_drift)
 
-    def compute_bli(self, tli: float, vli: float, weights: Tuple[float, float] = (0.5, 0.5)) -> float:
+    @staticmethod
+    def compute_bli(tli: float, vli: float, weights: Tuple[float, float] = (0.5, 0.5)) -> float:
         """BLI = alpha*TLI + beta*VLI. Brand Liquidity Index.
         
         CMCS is deliberately excluded (orthogonal dimension).
@@ -645,6 +636,29 @@ class BrandLiquidityAnalyzer:
             return 10.0 if topic_turnover > 0 else 0.0
         return float(min(10.0, topic_turnover / semantic_drift_raw))
 
+    @staticmethod
+    def _compute_consecutive_cosine_drift(
+        period_keys: List[str],
+        period_centroids: Dict[str, np.ndarray],
+    ) -> Tuple[float, Dict[str, float]]:
+        """
+        Compute mean cosine distance (1 - cosine similarity) across consecutive periods.
+
+        Returns:
+            raw_drift: float
+            similarities: Dict like "2019->2020" -> cosine similarity
+        """
+        similarities: Dict[str, float] = {}
+        drifts: List[float] = []
+
+        for i in range(len(period_keys) - 1):
+            p1, p2 = period_keys[i], period_keys[i + 1]
+            sim = float(cosine_similarity(period_centroids[p1], period_centroids[p2])[0, 0])
+            similarities[f"{p1}->{p2}"] = sim
+            drifts.append(1.0 - sim)
+
+        raw_drift = float(np.mean(drifts)) if drifts else 0.0
+        return raw_drift, similarities
     # -------------------- Main Analysis Pipeline --------------------
 
     def analyze_brand(

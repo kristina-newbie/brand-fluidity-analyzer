@@ -2,19 +2,20 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
-import os
 import json
 import shutil
-import re
 from pathlib import Path
 from collections import defaultdict
 import uvicorn
 import traceback
 import numpy as np
 from dotenv import load_dotenv
+
+from brand_fluidity_analyzer_v2 import BrandLiquidityAnalyzer
+from utils import save_files, extract_year_from_filename
+
 load_dotenv()
 
-from brand_liquidity_analyzer import BrandLiquidityAnalyzer
 from llm_analyzer import LLMAnalyzer
 
 app = FastAPI(title="Brand Liquidity Analyzer API", version="5.0")
@@ -36,18 +37,6 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 analyzer = BrandLiquidityAnalyzer()
 llm_analyzer = LLMAnalyzer()
-
-
-def extract_year_from_filename(filename: str) -> Optional[str]:
-    """
-    Extract year from filename.
-    Looks for 4-digit years (2015-2025) in filename.
-    """
-    match = re.search(r'(20[12][0-9])', filename)
-    if match:
-        return match.group(1)
-    return None
-
 
 def load_texts_by_period(text_dir: Path) -> Dict[str, List[str]]:
     """
@@ -175,50 +164,9 @@ async def upload_files(
         image_dir = brand_dir / "images"
         text_dir.mkdir(exist_ok=True)
         image_dir.mkdir(exist_ok=True)
-        
-        # Save text files
-        text_files = []
-        for text_file in texts:
-            # If year mapping provided, rename file to include year
-            filename = text_file.filename
-            if text_file.filename in year_mapping:
-                year = year_mapping[text_file.filename]
-                base, ext = os.path.splitext(filename)
-                if not extract_year_from_filename(filename):
-                    filename = f"{base}_{year}{ext}"
-            
-            file_path = text_dir / filename
-            with open(file_path, "wb") as f:
-                shutil.copyfileobj(text_file.file, f)
-            
-            detected_year = extract_year_from_filename(filename)
-            text_files.append({
-                "filename": filename,
-                "path": str(file_path),
-                "year": detected_year
-            })
-        
-        # Save image files
-        image_files = []
-        for image_file in images:
-            # If year mapping provided, rename file to include year
-            filename = image_file.filename
-            if image_file.filename in year_mapping:
-                year = year_mapping[image_file.filename]
-                base, ext = os.path.splitext(filename)
-                if not extract_year_from_filename(filename):
-                    filename = f"{base}_{year}{ext}"
-            
-            file_path = image_dir / filename
-            with open(file_path, "wb") as f:
-                shutil.copyfileobj(image_file.file, f)
-            
-            detected_year = extract_year_from_filename(filename)
-            image_files.append({
-                "filename": filename,
-                "path": str(file_path),
-                "year": detected_year
-            })
+
+        text_files = save_files(texts, text_dir, year_mapping)
+        image_files = save_files(images, image_dir, year_mapping)
         
         return JSONResponse({
             "status": "success",

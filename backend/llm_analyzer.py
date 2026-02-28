@@ -12,9 +12,9 @@ Updated for v5 methodology:
 """
 
 import anthropic
+from anthropic.types import MessageParam
 import os
 from typing import Dict
-import json
 
 class LLMAnalyzer:
     def __init__(self, api_key: str = None):
@@ -45,17 +45,17 @@ class LLMAnalyzer:
         try:
             # Prepare the analysis data for Claude
             prompt = self._create_analysis_prompt(analysis_results)
-            
+            messages: list[MessageParam] = [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
             # Call Claude API
             message = self.client.messages.create(
                 model="claude-sonnet-4-5-20250929",
                 max_tokens=3500,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                messages=messages
             )
             
             # Parse the response
@@ -73,8 +73,9 @@ class LLMAnalyzer:
                 "error": str(e),
                 "insights": f"Error generating insights: {str(e)}"
             }
-    
-    def _safe_float(self, value, default=0.0) -> float:
+
+    @staticmethod
+    def _safe_float(value, default=0.0) -> float:
         """Safely convert value to float."""
         if value is None:
             return default
