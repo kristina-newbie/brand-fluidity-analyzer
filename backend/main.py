@@ -6,6 +6,8 @@ import os
 import json
 import shutil
 import re
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from collections import defaultdict
 import uvicorn
@@ -17,7 +19,7 @@ load_dotenv()
 from brand_liquidity_analyzer import BrandLiquidityAnalyzer
 from llm_analyzer import LLMAnalyzer
 
-app = FastAPI(title="Brand Liquidity Analyzer API", version="5.0")
+app = FastAPI(title="Brand Liquidity Analyzer API", version="5.1")
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -41,12 +43,40 @@ llm_analyzer = LLMAnalyzer()
 def extract_year_from_filename(filename: str) -> Optional[str]:
     """
     Extract year from filename.
-    Looks for 4-digit years (2015-2025) in filename.
+    Looks for 4-digit years (2010-2029) in filename.
     """
     match = re.search(r'(20[12][0-9])', filename)
     if match:
         return match.group(1)
     return None
+
+
+WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+
+def read_text_file(path: Path) -> Optional[str]:
+    """
+    Read the text content of a brand text file.
+
+    FIX v5.1: .docx files were previously read as raw bytes, which turned
+    the zipped Word file into meaningless characters. They are now unpacked
+    and only the document text is used. Old binary .doc files cannot be
+    read reliably and are skipped with a warning.
+    """
+    suffix = path.suffix.lower()
+    if suffix == ".docx":
+        with zipfile.ZipFile(path) as docx:
+            root = ET.fromstring(docx.read("word/document.xml"))
+        paragraphs = []
+        for para in root.iter(f"{WORD_NS}p"):
+            text = "".join(node.text or "" for node in para.iter(f"{WORD_NS}t"))
+            if text.strip():
+                paragraphs.append(text)
+        return "\n".join(paragraphs)
+    if suffix == ".doc":
+        print(f"Warning: skipped {path.name}. Old .doc files cannot be read; save it as .txt or .docx.")
+        return None
+    return path.read_text(encoding='utf-8', errors='ignore')
 
 
 def load_texts_by_period(text_dir: Path) -> Dict[str, List[str]]:
@@ -67,9 +97,11 @@ def load_texts_by_period(text_dir: Path) -> Dict[str, List[str]]:
     for text_file in text_dir.glob("*"):
         if text_file.is_file() and text_file.suffix.lower() in ['.txt', '.md', '.doc', '.docx']:
             try:
-                # Try to read text content
-                content = text_file.read_text(encoding='utf-8', errors='ignore')
-                
+                # Read text content (.docx is unpacked, .doc is skipped)
+                content = read_text_file(text_file)
+                if content is None:
+                    continue
+
                 # Extract year from filename
                 year = extract_year_from_filename(text_file.name)
                 
@@ -236,20 +268,25 @@ async def upload_files(
 @app.post("/api/analyze")
 async def analyze_brand(
     brand_name: str = Form(...),
-    include_llm_insights: bool = Form(True)
+    include_llm_insights: bool = Form(True),
+    core_promise: Optional[str] = Form(None)
 ):
     """
     Analyze brand liquidity metrics for uploaded materials.
-    
+
     Returns comprehensive liquidity analysis including:
     - Core metrics: TLI, VLI, CMCS, BLI
     - Second-order metrics: Drift volatility, coherence trajectory, drift ratio, etc.
+    - Optional promise retention (v5.1): enter the brand's core promise in
+      one sentence, e.g. "Handmade in Porto from full-grain leather, made
+      to last for years." Leave empty to skip.
     - Optional LLM-generated strategic insights
     """
     try:
         print("="*70)
         print(f"Starting analysis for: {brand_name}")
         print(f"Include LLM insights: {include_llm_insights}")
+        print(f"Core promise: {core_promise if core_promise else '(none)'}")
         print("="*70)
         
         brand_dir = UPLOAD_DIR / brand_name.replace(" ", "_")
@@ -277,12 +314,13 @@ async def analyze_brand(
                 detail="No valid text or image files found. Ensure files have year in filename (e.g., 'content_2019.txt')."
             )
         
-        # Run analysis with v5 analyzer
-        print("\nStarting Brand Liquidity Analysis v5.0...")
+        # Run analysis with v5.1 analyzer
+        print("\nStarting Brand Liquidity Analysis v5.1...")
         results = analyzer.analyze_brand(
             texts_by_period=texts_by_period,
             images_by_period=images_by_period,
-            brand_name=brand_name
+            brand_name=brand_name,
+            core_promise=core_promise
         )
         print("Brand Liquidity Analysis completed successfully!")
         
@@ -363,11 +401,12 @@ async def delete_brand(brand_name: str):
 async def root():
     return {
         "message": "Brand Liquidity Analyzer API",
-        "version": "5.0",
+        "version": "5.1",
         "features": [
             "Core metrics: TLI, VLI, CMCS, BLI",
             "Second-order metrics: Drift volatility, coherence trajectory, drift ratio",
             "Directional consistency and topic-semantic decoupling",
+            "Optional promise retention (v5.1)",
             "LLM-powered strategic insights"
         ]
     }
